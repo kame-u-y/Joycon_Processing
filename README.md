@@ -1,4 +1,4 @@
-# JoyconLib_Processing
+# Joycon_Processing
 
 Processing (Java)でJoyconをポインティングデバイスとして利用する。
 
