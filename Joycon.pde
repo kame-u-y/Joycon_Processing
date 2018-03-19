@@ -5,11 +5,25 @@ import java.util.Arrays;
 
 
 class Joycon {
+  private boolean ir_mode = true;
 
-  HidDevice dev;
+  private final int JOYCON_VENDOR_ID = 0x057E;
+  private final int JOYCON_LEFT      = 0x2006;
+  private final int JOYCON_RIGHT     = 0x2007;
+
+  HidDevice     dev;
   HidDeviceInfo joyconInfo;
-  byte reportId = 33;
   int global_count = 0;
+
+  private boolean[] buttons_down = new boolean[13];
+  private boolean[] buttons_up   = new boolean[13];
+  private boolean[] buttons      = new boolean[13];
+  private boolean[] down_        = new boolean[13];
+
+  private float[] stick = {0, 0};
+  private short[] stick_raw = {0, 0, 0};
+  private char[] stick_cal = { 0, 0, 0, 0, 0, 0 };
+  private char deadzone;
 
   private short[] acc_r = {0, 0, 0};
   private Vector3 acc_g = new Vector3(0, 0, 0);
@@ -25,17 +39,12 @@ class Joycon {
 
   public Vector3 i_b, j_b, k_b, k_acc;
 
-  private float filterweight = 0.5f;
-
-
   private boolean first_imu_packet = true;
-
+  private float filterweight = 0.5f;
   private int timestamp = 0;
-
-  boolean isLeft;
-
-  float posX, posY;
-  float vx, vy;
+  private boolean isLeft;
+  private float posX, posY;
+  private float vx, vy;
   int t;
 
   Joycon() {
@@ -47,24 +56,25 @@ class Joycon {
     posY = 0;
     vx = 0;
     vy = 0;
-    t  = 1;
+    t  = 0;
+    //t  = 1;
   }
 
   private void connectDevice() {
     List<HidDeviceInfo> devList = PureJavaHidApi.enumerateDevices();
 
     for (HidDeviceInfo info : devList) {
-      if ( (info.getVendorId()==0x057E)) {
-        if (info.getProductId()==0x2007) isLeft = false;
-        else if (info.getProductId()==0x2006) isLeft = true;
+      if ( (info.getVendorId()==JOYCON_VENDOR_ID)) {
+        if (info.getProductId()==JOYCON_LEFT) isLeft = true;
+        else if (info.getProductId()==JOYCON_RIGHT) isLeft = false;
         else return;
 
         joyconInfo = info;
-        System.out.printf("VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", //
-          info.getVendorId(), //
-          info.getProductId(), //
-          info.getManufacturerString(), //
-          info.getProductString(), //
+        System.out.printf("VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", 
+          info.getVendorId(), 
+          info.getProductId(), 
+          info.getManufacturerString(), 
+          info.getProductString(), 
           info.getPath());
 
         println("get new joycon info");
@@ -99,12 +109,13 @@ class Joycon {
         //System.out.printf("onInputReport: id %d len %d data ", Id, len);
         //for (int i = 0; i < len; i++) System.out.printf("%02x ", data[i]);
         //System.out.println();
-        reportId = Id;
+        //reportId = Id;
 
         processIMU(data);
-        //println(gyr_g);
-        //println(acc_g);
-        posX = - ( (1/2) * (gyr_g.z) + (gyr_g.z) ) + posX ;
+
+        processButtonsAndStick(data);
+
+        posX = - ( (1/2) * (gyr_g.z) + (gyr_g.z) ) + posX;
         posY = (1/2) * (gyr_g.y) + (gyr_g.y) + posY;
         //vx   = acc_g.z * t + vx;
         //vy   = acc_g.y * t + vy;
@@ -114,44 +125,70 @@ class Joycon {
   }
 
   private void changeMode() {
-
-
     Thread thread = new Thread(new MultiThread() {
       @Override
         public void run() {
         try {
           byte[] buf = new byte[0x400];
           Arrays.fill(int(buf), 0);
+
           buf[0] = 0x03;
-          joycon_send_subcommand(0, 0x1, 0x3, new byte[] {0x3f}, 1);
+          joycon_send_subcommand(0x1, 0x3, new byte[] {0x3f});
+
           Thread.sleep(100);
+
           buf[0] = 0x01;
-          joycon_send_subcommand(0, 0x1, 0x1, buf, 1);
+          joycon_send_subcommand(0x1, 0x1, buf);
+
           Thread.sleep(100);
 
           buf[0] = 0x02;
-          joycon_send_subcommand(0, 0x1, 0x1, buf, 1);          
+          joycon_send_subcommand(0x1, 0x1, buf);
+
           Thread.sleep(100);
 
+          // 0x01: Bluetooth manual pairing
           buf[0] = 0x03;
-          joycon_send_subcommand(0, 0x1, 0x1, buf, 1);
-          Thread.sleep(100);
-
-          buf[0] = 0x0;
-          joycon_send_subcommand(0, 0x1, 0x30, buf, 1);
-          Thread.sleep(100);
-
-          joycon_send_subcommand(0, 0x1, 0x40, new byte[] {0x1}, 1);
+          joycon_send_subcommand(0x1, 0x1, buf);
 
           Thread.sleep(100);
 
-          joycon_send_subcommand(0, 0x1, 0x3, new byte[] {0x30}, 1);
+          //buf[0] = 0x0;
+          //joycon_send_subcommand(0x1, 0x30, buf);
+
           Thread.sleep(100);
 
-          joycon_send_subcommand(0, 0x1, 0x48, new byte[] {0x1}, 1);
+          //Subcommand 0x40: Enable IMU (6-Axis sensor)
+          joycon_send_subcommand(0x1, 0x40, new byte[] {0x1});
+
           Thread.sleep(100);
 
-          Thread.sleep(10000);
+          // subcommand 0x11 send to MCU 
+          joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+
+          Thread.sleep(100);
+
+          //Standard full mode. Pushes current state @60Hz
+          joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
+
+          Thread.sleep(100);
+
+          if (ir_mode) {
+            // NFC/IR mode. Pushes large packets @60Hz
+            joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+          }
+
+          Thread.sleep(100);
+
+          // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
+          joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
+
+          //Thread.sleep(100);
+
+          //byte[] b = {
+          //  0x5, 0x0, 0xf, 0x0, 0x0, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1
+          //};
+          //joycon_send_subcommand(0, 0x1, 0x38, b, 1);
         } 
         catch(InterruptedException e) {
           println(e);
@@ -162,13 +199,8 @@ class Joycon {
     thread.start();
   }
 
-
-
-  //    joycon_send_subcommand(0, 0x3, 0x40, buf, 1);
-
-  //joycon_send_subcommand(0, 0x2, 0x40, buf, 1);
-
-  private void joycon_send_subcommand(int handle, int command, int subcommand, byte[] data, int len) {
+  private void joycon_send_subcommand(int command, int subcommand, byte[] data) {
+    int len = 1;
     byte[] buf = new byte[0x400];
     Arrays.fill(int(buf), 0);
     byte[] rumble_base = {
@@ -182,7 +214,6 @@ class Joycon {
       0x40, // 64
       0x40  // 64
     };
-    //println(rumble_base);
 
     for (int i=0; i<rumble_base.length; i++) {
       buf[i] = rumble_base[i];
@@ -195,10 +226,10 @@ class Joycon {
       }
     }
 
-    joycon_send_command(handle, command, buf, 10 + len);
+    joycon_send_command(command, buf, 10 + len);
   }
 
-  private void joycon_send_command(int handle, int command, byte[] data, int len) {
+  private void joycon_send_command(int command, byte[] data, int len) {
     byte[] buf = new byte[0x400];
     Arrays.fill(int(buf), 0);
 
@@ -208,17 +239,32 @@ class Joycon {
       buf[i+1] = data[i];
     }
 
-    hid_exchange(handle, buf, len + 1);
+    hid_exchange(buf, len + 1);
   }
 
-  private void hid_exchange(int handle, byte[] buf, int len) {
-    //hid_write(handle, buf, len);
-    //println(handle + "hoge");
-    //for (int i=0; i<32; i++) {
-    //  println(buf[i]);
-    //}
-    //println(len);
-    dev.setOutputReport(byte(0x01), buf, len);
+  private void hid_exchange(byte[] buf, int len) {
+    dev.setOutputReport(byte(0), buf, len);
+  }
+
+  public void initialPosition() {
+    posX = 0;
+    posY = 0;
+  }
+
+  public boolean getButtonDown(Button b) {
+    return buttons_down[(int)b.ordinal()];
+  }
+
+  public boolean getButton(Button b) {
+    return buttons[(int)b.ordinal()];
+  }
+
+  public boolean getButtonUp(Button b) {
+    return buttons_up[(int)b.ordinal()];
+  }
+
+  public float[] getStick() {
+    return stick;
   }
 
   public Vector3 getAccel() {
@@ -229,6 +275,75 @@ class Joycon {
     return gyr_g;
   }
 
+  private int processButtonsAndStick(byte[] report_buf) {
+    if (report_buf[0] == 0x00) return -1;
+
+    stick_raw[0] = report_buf[6 + (isLeft ? 0 : 3)];
+    stick_raw[1] = report_buf[7 + (isLeft ? 0 : 3)];
+    stick_raw[2] = report_buf[8 + (isLeft ? 0 : 3)];
+
+    char[] stick_precal = {0, 0};
+    stick_precal[0] = (char)(stick_raw[0] | ((stick_raw[1] & 0xf) << 8));
+    stick_precal[1] = (char)((stick_raw[1] >> 4) | (stick_raw[2] << 4));
+    println(int(stick_precal[0]), int(stick_precal[1]));
+
+    stick = CenterSticks(stick_precal);
+    //lock (buttons)
+    //{
+    //lock (down_)
+    //{
+    for (int i = 0; i < buttons.length; ++i)
+    {
+      down_[i] = buttons[i];
+    }
+    //}
+    buttons[(int)Button.DPAD_DOWN.ordinal()]  = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
+    buttons[(int)Button.DPAD_RIGHT.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
+    buttons[(int)Button.DPAD_UP.ordinal()]    = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
+    buttons[(int)Button.DPAD_LEFT.ordinal()]  = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
+    buttons[(int)Button.HOME.ordinal()]       = ((report_buf[4] & 0x10) != 0);
+    buttons[(int)Button.MINUS.ordinal()]      = ((report_buf[4] & 0x01) != 0);
+    buttons[(int)Button.PLUS.ordinal()]       = ((report_buf[4] & 0x02) != 0);
+    buttons[(int)Button.STICK.ordinal()]      = ((report_buf[4] & (isLeft ? 0x08 : 0x04)) != 0);
+    buttons[(int)Button.SHOULDER_1.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
+    buttons[(int)Button.SHOULDER_2.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
+    buttons[(int)Button.SR.ordinal()]         = (report_buf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
+    buttons[(int)Button.SL.ordinal()]         = (report_buf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
+
+    boolean[] down_ = new boolean[13];
+    //lock (buttons_up)
+    //{
+    //  lock (buttons_down)
+    //  {
+    for (int i = 0; i < buttons.length; ++i) {
+      buttons_up[i] = (down_[i] & !buttons[i]);
+      buttons_down[i] = (!down_[i] & buttons[i]);
+    }
+    // }
+    //}
+    //}
+    return 0;
+  }
+
+  private float[] CenterSticks(char[] vals) {
+
+    float[] s = { 0, 0 };
+    for (int i = 0; i < 2; ++i) {
+      float diff = vals[i] - stick_cal[2 + i];
+      if (abs(diff) < deadzone) vals[i] = 0;
+      else if (diff > 0) { // if axis is above center
+        s[i] = diff / stick_cal[i];
+      } else {
+        s[i] = diff / stick_cal[4 + i];
+      }
+    }
+    return s;
+  }
+
+
+  /////////////////////////////////////////////////////////////////
+  /* Process IMU Values */
+
   private int processIMU(byte[] report_buf) {
 
     int dt = (report_buf[1] - timestamp);
@@ -237,7 +352,6 @@ class Joycon {
     for (int n=0; n<3; n++) {
 
       extractIMUValues(report_buf, n);
-
 
       float dt_sec = 0.005f * dt;
       sum[0] += gyr_g.x * dt_sec;
@@ -250,7 +364,6 @@ class Joycon {
         gyr_g.y *= -1;
         gyr_g.z *= -1;
       }
-
 
       if (first_imu_packet) {
         i_b = new Vector3(1, 0, 0);

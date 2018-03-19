@@ -1,5 +1,5 @@
 static class Vector3 {
-  public float x, y, z;
+  private float x, y, z;
   public static Vector3 zero = new Vector3(0, 0, 0);
 
   public Vector3(float _x, float _y, float _z) {
@@ -9,9 +9,9 @@ static class Vector3 {
   }
 
   public static Vector3 Normalize(Vector3 _v) {
-    float nrm_x = _v.x>0 ? 1 : -1;
-    float nrm_y = _v.y>0 ? 1 : -1;
-    float nrm_z = _v.z>0 ? 1 : -1;
+    float nrm_x = (_v.x > 0) ? 1 : -1;
+    float nrm_y = (_v.y > 0) ? 1 : -1;
+    float nrm_z = (_v.z > 0) ? 1 : -1;
     return new Vector3(nrm_x, nrm_y, nrm_z);
   }
 
@@ -27,10 +27,18 @@ static class Vector3 {
   }
 
   public static Vector3 Addition(Vector3 _v1, Vector3 _v2) {
-    return new Vector3(_v1.x+_v2.x, _v1.y+_v2.y, _v1.z+_v2.z);
+    return new Vector3( (_v1.x + _v2.x), (_v1.y + _v2.y), (_v1.z + _v2.z) );
   }
   
   public void setX(float _x) {
     x = _x;
+  }
+  
+  public void setY(float _y) {
+    y = _y;
+  }
+  
+  public void setZ(float _z) {
+    z = _z;
   }
 }
