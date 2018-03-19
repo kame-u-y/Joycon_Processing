@@ -10,13 +10,15 @@ Processing (Java)でJoyconをポインティングデバイスとして利用す
 
 - 傾きの計算
 
+- 接続デバイスが存在しない場合のエラー解消
+
 - ポインティングデバイスとして使用できるように修正
 
 - Javaライブラリとして作成
 
 ## 参考記事
 
-[shinyquagsire23/Nintendo_Switch_Reverse_Engineering](https://github.com/shinyquagsire23/Nintendo_Switch_Reverse_Engineering)
+[dekuNukem/Nintendo_Switch_Reverse_Engineering](https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering)
 
 [Nintendo SwitchのJoy-Conをリバースエンジニアリング - GIGAZINE](https://gigazine.net/news/20171107-nintendo-switch-reverse-engineering/)
 
