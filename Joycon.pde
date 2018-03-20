@@ -4,16 +4,16 @@ import java.util.List;
 import java.util.Arrays;
 
 
-class Joycon {
+public class Joycon {
   private boolean ir_mode = true;
 
-  private final int JOYCON_VENDOR_ID = 0x057E;
-  private final int JOYCON_LEFT      = 0x2006;
-  private final int JOYCON_RIGHT     = 0x2007;
 
   HidDevice     dev;
-  HidDeviceInfo joyconInfo;
+  HidDeviceInfo devInfo;
   int global_count = 0;
+
+  // inner class "Rumble" is defined the last of class "Joycon"
+  private Rumble rumble_obj;
 
   private boolean[] buttons_down = new boolean[13];
   private boolean[] buttons_up   = new boolean[13];
@@ -42,6 +42,7 @@ class Joycon {
   private boolean first_imu_packet = true;
   private float filterweight = 0.5f;
   private int timestamp = 0;
+  private int report_len = 49;
   private boolean isLeft;
   private float posX, posY;
   private float vx, vy;
@@ -58,33 +59,39 @@ class Joycon {
     vy = 0;
     t  = 0;
     //t  = 1;
+    rumble_obj = new Rumble(160, 320, 0, 0);
   }
 
   private void connectDevice() {
     List<HidDeviceInfo> devList = PureJavaHidApi.enumerateDevices();
 
     for (HidDeviceInfo info : devList) {
-      if ( (info.getVendorId()==JOYCON_VENDOR_ID)) {
-        if (info.getProductId()==JOYCON_LEFT) isLeft = true;
-        else if (info.getProductId()==JOYCON_RIGHT) isLeft = false;
-        else return;
+      if (info.getVendorId() != JoyconConstants.VENDOR_ID) continue;
 
-        joyconInfo = info;
-        System.out.printf("VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", 
-          info.getVendorId(), 
-          info.getProductId(), 
-          info.getManufacturerString(), 
-          info.getProductString(), 
-          info.getPath());
+      if (info.getProductId() == JoyconConstants.LEFT_ID) isLeft = true;
+      else if (info.getProductId() == JoyconConstants.RIGHT_ID) isLeft = false;
+      else return;
 
-        println("get new joycon info");
-        break;
-      }
+      devInfo = info;
+      System.out.printf(
+        "VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", 
+        info.getVendorId(), 
+        info.getProductId(), 
+        info.getManufacturerString(), 
+        info.getProductString(), 
+        info.getPath()
+        );
+      break;
+    }
+
+    if (devInfo == null) {
+      println("Connection Failed");
+      return;
     }
 
     try {
-      dev = PureJavaHidApi.openDevice(joyconInfo);
-      println("create joycon as a HidDevice");
+      dev = PureJavaHidApi.openDevice(devInfo);
+      println("Connection Successful");
     }
     catch(IOException e) {
       println(e);
@@ -106,10 +113,9 @@ class Joycon {
     dev.setInputReportListener(new InputReportListener() {
       @Override
         public void onInputReport(HidDevice source, byte Id, byte[] data, int len) {
-        //System.out.printf("onInputReport: id %d len %d data ", Id, len);
-        //for (int i = 0; i < len; i++) System.out.printf("%02x ", data[i]);
-        //System.out.println();
-        //reportId = Id;
+        System.out.printf("onInputReport: id %d len %d data ", Id, len);
+        for (int i = 0; i < len; i++) System.out.printf("%02x ", data[i]);
+        System.out.println();
 
         processIMU(data);
 
@@ -129,53 +135,59 @@ class Joycon {
       @Override
         public void run() {
         try {
-          byte[] buf = new byte[0x400];
-          Arrays.fill(int(buf), 0);
+          //byte[] buf = new byte[0x400];
+          //Arrays.fill(int(buf), 0);
 
-          buf[0] = 0x03;
-          joycon_send_subcommand(0x1, 0x3, new byte[] {0x3f});
+          //buf[0] = 0x03;
+          //joycon_send_subcommand(0x1, 0x3, new byte[] {0x3f});
 
-          Thread.sleep(100);
+          //Thread.sleep(100);
 
-          buf[0] = 0x01;
-          joycon_send_subcommand(0x1, 0x1, buf);
+          //buf[0] = 0x01;
+          //joycon_send_subcommand(0x1, 0x1, buf);
 
-          Thread.sleep(100);
+          //Thread.sleep(100);
 
-          buf[0] = 0x02;
-          joycon_send_subcommand(0x1, 0x1, buf);
+          //buf[0] = 0x02;
+          //joycon_send_subcommand(0x1, 0x1, buf);
 
-          Thread.sleep(100);
+          //Thread.sleep(100);
 
-          // 0x01: Bluetooth manual pairing
-          buf[0] = 0x03;
-          joycon_send_subcommand(0x1, 0x1, buf);
+          //// 0x01: Bluetooth manual pairing
+          //buf[0] = 0x03;
+          //joycon_send_subcommand(0x1, 0x1, buf);
 
-          Thread.sleep(100);
+          //Thread.sleep(100);
 
           //buf[0] = 0x0;
           //joycon_send_subcommand(0x1, 0x30, buf);
 
-          Thread.sleep(100);
+          //Thread.sleep(100);
 
           //Subcommand 0x40: Enable IMU (6-Axis sensor)
-          joycon_send_subcommand(0x1, 0x40, new byte[] {0x1});
+          joycon_send_subcommand(0x1, 0x40, new byte[] {0x01});
 
           Thread.sleep(100);
 
-          // subcommand 0x11 send to MCU 
-          joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
-
-          Thread.sleep(100);
-
-          //Standard full mode. Pushes current state @60Hz
-          joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
+          ////Standard full mode. Pushes current state @60Hz
+          //joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
 
           Thread.sleep(100);
 
           if (ir_mode) {
             // NFC/IR mode. Pushes large packets @60Hz
             joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+
+            Thread.sleep(100);
+
+            // subcommand 0x11 send to MCU 
+            joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+
+            Thread.sleep(100);
+
+            // subcommand 0x11 send to MCU 
+            //joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+            //joycon_send_subcommand(0x1, 0x21, new byte[] {0x1});
           }
 
           Thread.sleep(100);
@@ -186,9 +198,9 @@ class Joycon {
           //Thread.sleep(100);
 
           //byte[] b = {
-          //  0x5, 0x0, 0xf, 0x0, 0x0, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1
+          //  0xe, 0xf, 0xf, 0x4, 0x5, 0x3, 0xa, 0xe, 0xb, 0x4, 0xa, 0x4, 0xb, 0x6, 0x2, 0x23, 0x55, 0x45, 0x13, 0x41, 0x12, 0x16, 0x21, 0x61, 0x12
           //};
-          //joycon_send_subcommand(0, 0x1, 0x38, b, 1);
+          //joycon_send_subcommand(0x1, 0x38, b);
         } 
         catch(InterruptedException e) {
           println(e);
@@ -275,6 +287,27 @@ class Joycon {
     return gyr_g;
   }
 
+  public void setRumble(float low_freq, float high_freq, float amp, int time) {
+    //if (state <= Joycon.state_.ATTACHED) return;
+    if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
+      rumble_obj = new Rumble(low_freq, high_freq, amp, time);
+    }
+  }
+
+  private void sendRumble(byte[] buf) {
+    byte[] buf_ = new byte[report_len];
+    buf_[0] = 0x10;
+    buf_[1] = byte(global_count);
+    if (global_count == 0xf) global_count = 0;
+    else ++global_count;
+    for (int i=0; i<buf.length; i++) {
+      buf_[i+2] = buf[i];
+    }
+    //PrintArray(buf_, DebugType.RUMBLE, format: 
+    //  "Rumble data sent: {0:S}");
+    dev.setOutputReport(byte(0x0), buf_, report_len);
+  }
+
   private int processButtonsAndStick(byte[] report_buf) {
     if (report_buf[0] == 0x00) return -1;
 
@@ -287,7 +320,7 @@ class Joycon {
     stick_precal[1] = (char)((stick_raw[1] >> 4) | (stick_raw[2] << 4));
     println(int(stick_precal[0]), int(stick_precal[1]));
 
-    stick = CenterSticks(stick_precal);
+    stick = centerSticks(stick_precal);
     //lock (buttons)
     //{
     //lock (down_)
@@ -325,7 +358,7 @@ class Joycon {
     return 0;
   }
 
-  private float[] CenterSticks(char[] vals) {
+  private float[] centerSticks(char[] vals) {
 
     float[] s = { 0, 0 };
     for (int i = 0; i < 2; ++i) {
@@ -432,5 +465,83 @@ class Joycon {
     acc_g.z = acc_r[2] * 0.00025f;
     gyr_g.z = (gyr_r[2] - gyr_neutral[2]) * 0.00122187695f;
     if (abs(acc_g.z) > abs(max[2])) max[2] = acc_g.z;
+  }
+
+
+  // inner class Rumble
+  private class Rumble {
+    private float h_f, amp, l_f;
+    public float t;
+    public boolean timed_rumble;
+
+    public Rumble(float low_freq, float high_freq, float amplitude, int time) {
+      h_f = high_freq;
+      amp = amplitude;
+      l_f = low_freq;
+      //timed_rumble = false;
+      t = 0;
+      if (time != 0) {
+        t = time / 1000f;
+        timed_rumble = true;
+      }
+    }
+
+    private float clamp(float x, float min, float max) {
+      if (x < min) return min;
+      if (x > max) return max;
+      return x;
+    }
+
+    private float log2 (float _f) {
+      return (float)log(_f)/log(2);
+    }
+
+    public byte[] getData() {
+      byte[] rumble_data = new byte[8];
+      if (amp == 0.0f) {
+        rumble_data[0] = 0x0;
+        rumble_data[1] = 0x1;
+        rumble_data[2] = 0x40;
+        rumble_data[3] = 0x40;
+      } else {
+        l_f = clamp(l_f, 40.875885f, 626.286133f);
+        amp = clamp(amp, 0.0f, 1.0f);
+        h_f = clamp(h_f, 81.75177f, 1252.572266f);
+        char hf = (char)((round(32f * log2(h_f * 0.1f)) - 0x60) * 4);
+        byte lf = (byte)(round(32f * log2(l_f * 0.1f)) - 0x40);
+        byte hf_amp;
+        if (amp == 0) hf_amp = 0;
+        else if (amp < 0.117) hf_amp = (byte)(((log2(amp * 1000) * 32) - 0x60) / (5 - pow(amp, 2)) - 1);
+        else if (amp < 0.23) hf_amp = (byte)(((log2(amp * 1000) * 32) - 0x60) - 0x5c);
+        else hf_amp = (byte)((((log2(amp * 1000) * 32) - 0x60) * 2) - 0xf6);
+
+        char lf_amp = (char)(round(hf_amp) * .5);
+        byte parity = (byte)(lf_amp % 2);
+        if (parity > 0) {
+          --lf_amp;
+        }
+
+        lf_amp = (char)(lf_amp >> 1);
+        lf_amp += 0x40;
+        if (parity > 0) lf_amp |= 0x8000;
+        rumble_data = new byte[8];
+        rumble_data[0] = (byte)(hf & 0xff);
+        rumble_data[1] = (byte)((hf >> 8) & 0xff);
+        rumble_data[2] = lf;
+        rumble_data[1] += hf_amp;
+        rumble_data[2] += (byte)((lf_amp >> 8) & 0xff);
+        rumble_data[3] += (byte)(lf_amp & 0xff);
+      }
+      for (int i = 0; i < 4; ++i) {
+        rumble_data[4 + i] = rumble_data[i];
+      }
+      //Debug.Log(string.Format("Encoded hex freq: {0:X2}", encoded_hex_freq));
+      //Debug.Log(string.Format("lf_amp: {0:X4}", lf_amp));
+      //Debug.Log(string.Format("hf_amp: {0:X2}", hf_amp));
+      //Debug.Log(string.Format("l_f: {0:F}", l_f));
+      //Debug.Log(string.Format("hf: {0:X4}", hf));
+      //Debug.Log(string.Format("lf: {0:X2}", lf));
+      return rumble_data;
+    }
   }
 }

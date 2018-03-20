@@ -36,6 +36,9 @@ void draw() {
     //println();
     //println("{x:", String.format("%1$.2f", accel.x), "y:", String.format("%1$.2f", accel.y), "z:", String.format("%1$.2f", accel.z), "}");
     //println("{x:", String.format("%1$.2f", gyro.x), "y:", String.format("%1$.2f", gyro.y), "z:", String.format("%1$.2f", gyro.z), "}");
+    
+    joycon.setRumble( 160, 320, 0.6f, 200 );
+    joycon.sendRumble(joycon.rumble_obj.getData());
   }
 
   fill(255, 0, 0);
