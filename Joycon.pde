@@ -138,8 +138,6 @@ public class Joycon {
           //byte[] buf = new byte[0x400];
           //Arrays.fill(int(buf), 0);
 
-          //buf[0] = 0x03;
-          //joycon_send_subcommand(0x1, 0x3, new byte[] {0x3f});
 
           //Thread.sleep(100);
 
@@ -149,9 +147,9 @@ public class Joycon {
           //Thread.sleep(100);
 
           //buf[0] = 0x02;
-          //joycon_send_subcommand(0x1, 0x1, buf);
+          joycon_send_subcommand(0x1, 0x1, new byte[]{0x02});
 
-          //Thread.sleep(100);
+          Thread.sleep(100);
 
           //// 0x01: Bluetooth manual pairing
           //buf[0] = 0x03;
@@ -170,37 +168,47 @@ public class Joycon {
           Thread.sleep(100);
 
           ////Standard full mode. Pushes current state @60Hz
-          //joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+          joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
 
-          Thread.sleep(100);
+          //Thread.sleep(100);
 
-          if (ir_mode) {
-            // NFC/IR mode. Pushes large packets @60Hz
-            joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+          //if (ir_mode) {
+          //  // NFC/IR mode. Pushes large packets @60Hz
+          //  //joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
 
-            Thread.sleep(100);
+          //  Thread.sleep(100);
 
-            // subcommand 0x11 send to MCU 
-            joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+          //  // subcommand 0x11 send to MCU 
+          //  joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
 
-            Thread.sleep(100);
+          //  Thread.sleep(100);
 
-            // subcommand 0x11 send to MCU 
-            //joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
-            //joycon_send_subcommand(0x1, 0x21, new byte[] {0x1});
-          }
+          //  // subcommand 0x11 send to MCU 
+          //  //joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+          //  joycon_send_subcommand(0x1, 0x21, new byte[] {0x1});
+          //}
 
           Thread.sleep(100);
 
           // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
-          joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
+          //joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
 
-          //Thread.sleep(100);
+          Thread.sleep(100);
 
-          //byte[] b = {
-          //  0xe, 0xf, 0xf, 0x4, 0x5, 0x3, 0xa, 0xe, 0xb, 0x4, 0xa, 0x4, 0xb, 0x6, 0x2, 0x23, 0x55, 0x45, 0x13, 0x41, 0x12, 0x16, 0x21, 0x61, 0x12
-          //};
-          //joycon_send_subcommand(0x1, 0x38, b);
+          byte[] b = {
+            byte(0xaf), byte(0x00), 
+            byte(0xf0), byte(0x40), byte(0x40), 
+            byte(0xf0), byte(0x00), byte(0x00), 
+            byte(0xf0), byte(0x00), byte(0x00), 
+            byte(0xf0), byte(0x0f), byte(0x00), 
+            byte(0xf0), byte(0x00), byte(0x00)
+          };
+          joycon_send_subcommand(0x1, 0x38, b);
+
+          Thread.sleep(100);
+
+
+          joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
         } 
         catch(InterruptedException e) {
           println(e);
@@ -212,32 +220,18 @@ public class Joycon {
   }
 
   private void joycon_send_subcommand(int command, int subcommand, byte[] data) {
-    int len = 1;
+    int len = data.length;
     byte[] buf = new byte[0x400];
     Arrays.fill(int(buf), 0);
     byte[] rumble_base = {
       byte((++global_count) & 0xF), // 1 & 0xF -> 0001 AND 1111 -> 0001 -> 1
-      0x00, // 0
-      0x01, // 1
-      0x40, // 64
-      0x40, // 64
-      0x00, // 0
-      0x01, // 1
-      0x40, // 64
-      0x40  // 64
+      0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40
     };
-
-    for (int i=0; i<rumble_base.length; i++) {
-      buf[i] = rumble_base[i];
-    }
-
+    System.arraycopy(rumble_base, 0, buf, 0, rumble_base.length);
     buf[9] = byte(subcommand);
     if (data != null && len != 0) {
-      for (int i=0; i<len; i++) {
-        buf[i+10] = data[i];
-      }
+      System.arraycopy(data, 0, buf, 10, len);
     }
-
     joycon_send_command(command, buf, 10 + len);
   }
 
@@ -294,7 +288,7 @@ public class Joycon {
     }
   }
 
-  private void sendRumble(byte[] buf) {
+  public void sendRumble(byte[] buf) {
     byte[] buf_ = new byte[report_len];
     buf_[0] = 0x10;
     buf_[1] = byte(global_count);
@@ -318,7 +312,7 @@ public class Joycon {
     char[] stick_precal = {0, 0};
     stick_precal[0] = (char)(stick_raw[0] | ((stick_raw[1] & 0xf) << 8));
     stick_precal[1] = (char)((stick_raw[1] >> 4) | (stick_raw[2] << 4));
-    println(int(stick_precal[0]), int(stick_precal[1]));
+    //println(int(stick_precal[0]), int(stick_precal[1]));
 
     stick = centerSticks(stick_precal);
     //lock (buttons)

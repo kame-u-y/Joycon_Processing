@@ -1,4 +1,8 @@
 float bg = 100;
+int param1 = 0xfc;
+int param2 = 0x01;
+float param3 = 4.0f;
+int param4 = 100;
 
 public enum Button {
   DPAD_DOWN, 
@@ -37,8 +41,9 @@ void draw() {
     //println("{x:", String.format("%1$.2f", accel.x), "y:", String.format("%1$.2f", accel.y), "z:", String.format("%1$.2f", accel.z), "}");
     //println("{x:", String.format("%1$.2f", gyro.x), "y:", String.format("%1$.2f", gyro.y), "z:", String.format("%1$.2f", gyro.z), "}");
     
-    joycon.setRumble( 160, 320, 0.6f, 200 );
-    joycon.sendRumble(joycon.rumble_obj.getData());
+    //joycon.setRumble( param1, param2, param3, param4 );
+    //joycon.sendRumble(joycon.rumble_obj.getData());
+    
   }
 
   fill(255, 0, 0);
@@ -69,4 +74,18 @@ float maxValue3(Vector3 _v) {
     if (abs(_v.y) > abs(_v.z)) return 1;
     else return 2;
   }
+}
+
+void keyPressed() {
+  if(keyCode==UP) {
+    param1++;
+  } else if(keyCode==RIGHT) {
+    param2++;
+  } else if(keyCode==DOWN) {
+    param3 += 0.1f;
+  } else if(keyCode==LEFT) {
+    param4 ++;
+  }
+  
+  println(param1, param2, param3, param4);
 }
