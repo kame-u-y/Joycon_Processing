@@ -3,14 +3,12 @@ import purejavahidapi.HidDevice;
 import java.util.List;
 import java.util.Arrays;
 
-
 public class Joycon {
   private boolean ir_mode = true;
 
-
-  HidDevice     dev;
-  HidDeviceInfo devInfo;
-  int global_count = 0;
+  private HidDevice     dev;
+  private HidDeviceInfo devInfo;
+  private int global_count = 0;
 
   // inner class "Rumble" is defined the last of class "Joycon"
   private Rumble rumble_obj;
@@ -148,7 +146,6 @@ public class Joycon {
 
           //buf[0] = 0x02;
           joycon_send_subcommand(0x1, 0x1, new byte[]{0x02});
-
           Thread.sleep(100);
 
           //// 0x01: Bluetooth manual pairing
@@ -164,82 +161,35 @@ public class Joycon {
 
           //Subcommand 0x40: Enable IMU (6-Axis sensor)
           joycon_send_subcommand(0x1, 0x40, new byte[] {0x01});
-
-          //Thread.sleep(100);
+          Thread.sleep(100);
 
           ////Standard full mode. Pushes current state @60Hz
           joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
-
           Thread.sleep(100);
 
           if (ir_mode) {
-            //Subcommand 0x03: Set input report mode
-            //Subcommand 0x21: Set MCU configuration
-            //Subcommand 0x22: Set MCU state
-
-            // NFC/IR mode. Pushes large packets @60Hz
-            joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
-            Thread.sleep(100);
-
-            //Subcommand 0x22: Set MCU state 
-            // (00:Suspend,01:Resume,02:Resume for update)
-            joycon_send_subcommand(0x11, 0x22, new byte[] {0x01});
-            Thread.sleep(100);
-
-            // subcommand 0x11 send to MCU
-            // if the command is x11, it polls the MCU State? Used with IR Camera or NFC?
-            joycon_send_subcommand(0x11, 0x01, new byte[] {0x00});
-            Thread.sleep(100);
-
-            // subcommand 0x11 send to MCU 
-            // 21 21 00 04 is for NFC
-            joycon_send_subcommand(0x11, 0x21, new byte[] {0x21, 0x00, 0x04});
-            Thread.sleep(100);
-            
-            // 21 21 00 05 for IR
-            joycon_send_subcommand(0x11, 0x21, new byte[] {0x21, 0x00, 0x05});
-            Thread.sleep(100);
-            
-            // no.5, continue sending subcommand 1 to report 0x11
-            joycon_send_subcommand(0x11, 0x01, new byte[] {0x00});
-            Thread.sleep(100);
-            
-            joycon_send_subcommand(0x11, 0x21, new byte[] {0x23, 0x01, 0x07, 0x0f, 0x00, 0x03, 0x00, 0x09});
-            Thread.sleep(100);
-            
-            joycon_send_subcommand(0x11, 0x03, new byte[] {0x02});
-            Thread.sleep(100);
-            
-            //joycon_send_subcommand(0x11, 0x02, new byte[] {0x04, 0x00, 0x00, 0x08});
-            //Thread.sleep(100);
-            
-            joycon_send_subcommand(0x01, 0x21, new byte[] {0x23});
-            Thread.sleep(100);
-            
-            joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+            // I can't do it.
           }
-
           Thread.sleep(100);
 
           // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
           //joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
+          //Thread.sleep(100);
 
-//          Thread.sleep(100);
+          // Light up Home button
+          byte[] b = {
+            byte(0xaf), byte(0x00), 
+            byte(0xf0), byte(0x40), byte(0x40), 
+            byte(0xf0), byte(0x00), byte(0x00), 
+            byte(0xf0), byte(0x00), byte(0x00), 
+            byte(0xf0), byte(0x0f), byte(0x00), 
+            byte(0xf0), byte(0x00), byte(0x00)
+          };
+          joycon_send_subcommand(0x1, 0x38, b);
+          Thread.sleep(100);
 
-//          byte[] b = {
-//            byte(0xaf), byte(0x00), 
-//            byte(0xf0), byte(0x40), byte(0x40), 
-//            byte(0xf0), byte(0x00), byte(0x00), 
-//            byte(0xf0), byte(0x00), byte(0x00), 
-//            byte(0xf0), byte(0x0f), byte(0x00), 
-//            byte(0xf0), byte(0x00), byte(0x00)
-//          };
-//          joycon_send_subcommand(0x1, 0x38, b);
-
-//          Thread.sleep(100);
-
-
-//          joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
+          // Light up Player button
+          joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
         } 
         catch(InterruptedException e) {
           println(e);
@@ -251,36 +201,20 @@ public class Joycon {
   }
 
   private void joycon_send_subcommand(int command, int subcommand, byte[] data) {
-    int len = data.length;
     byte[] buf = new byte[0x400];
-    Arrays.fill(int(buf), 0);
-    byte[] rumble_base = {
-      byte((++global_count) & 0xF), // 1 & 0xF -> 0001 AND 1111 -> 0001 -> 1
-      0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40
+    byte[] b = {
+      byte(command), 
+      byte(++(global_count) & 0xF), // 1 & 0xF -> 0001 AND 1111 -> 0001 -> 1
+      0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, 
+      byte(subcommand)
     };
-    System.arraycopy(rumble_base, 0, buf, 0, rumble_base.length);
-    buf[9] = byte(subcommand);
-    if (data != null && len != 0) {
-      System.arraycopy(data, 0, buf, 10, len);
-    }
-    joycon_send_command(command, buf, 10 + len);
-  }
-
-  private void joycon_send_command(int command, byte[] data, int len) {
-    byte[] buf = new byte[0x400];
+    
     Arrays.fill(int(buf), 0);
-
-    buf[0] = byte(command);
-
-    for (int i=0; i<len; i++) {
-      buf[i+1] = data[i];
-    }
-
-    hid_exchange(buf, len + 1);
-  }
-
-  private void hid_exchange(byte[] buf, int len) {
+    System.arraycopy(b, 0, buf, 0, b.length);
+    System.arraycopy(data, 0, buf, b.length, data.length);
+    int len = b.length + data.length;
     dev.setOutputReport(byte(0), buf, len);
+    // {command, ++(global_count) & 0xF, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, subcommand, data[0], ... , data[data.length-1]}
   }
 
   public void initialPosition() {

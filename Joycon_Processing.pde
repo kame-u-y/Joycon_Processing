@@ -1,6 +1,6 @@
 float bg = 100;
-int param1 = 0xfc;
-int param2 = 0x01;
+int param1 = 100;
+int param2 = 500;
 float param3 = 4.0f;
 int param4 = 100;
 
@@ -41,8 +41,8 @@ void draw() {
     //println("{x:", String.format("%1$.2f", accel.x), "y:", String.format("%1$.2f", accel.y), "z:", String.format("%1$.2f", accel.z), "}");
     //println("{x:", String.format("%1$.2f", gyro.x), "y:", String.format("%1$.2f", gyro.y), "z:", String.format("%1$.2f", gyro.z), "}");
     
-    //joycon.setRumble( param1, param2, param3, param4 );
-    //joycon.sendRumble(joycon.rumble_obj.getData());
+    joycon.setRumble( param1, param2, param3, param4 );
+    joycon.sendRumble(joycon.rumble_obj.getData());
     
   }
 
