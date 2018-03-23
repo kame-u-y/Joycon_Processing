@@ -165,50 +165,81 @@ public class Joycon {
           //Subcommand 0x40: Enable IMU (6-Axis sensor)
           joycon_send_subcommand(0x1, 0x40, new byte[] {0x01});
 
-          Thread.sleep(100);
-
-          ////Standard full mode. Pushes current state @60Hz
-          joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
-
           //Thread.sleep(100);
 
-          //if (ir_mode) {
-          //  // NFC/IR mode. Pushes large packets @60Hz
-          //  //joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+          ////Standard full mode. Pushes current state @60Hz
+          joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
 
-          //  Thread.sleep(100);
+          Thread.sleep(100);
 
-          //  // subcommand 0x11 send to MCU 
-          //  joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+          if (ir_mode) {
+            //Subcommand 0x03: Set input report mode
+            //Subcommand 0x21: Set MCU configuration
+            //Subcommand 0x22: Set MCU state
 
-          //  Thread.sleep(100);
+            // NFC/IR mode. Pushes large packets @60Hz
+            joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+            Thread.sleep(100);
 
-          //  // subcommand 0x11 send to MCU 
-          //  //joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
-          //  joycon_send_subcommand(0x1, 0x21, new byte[] {0x1});
-          //}
+            //Subcommand 0x22: Set MCU state 
+            // (00:Suspend,01:Resume,02:Resume for update)
+            joycon_send_subcommand(0x11, 0x22, new byte[] {0x01});
+            Thread.sleep(100);
+
+            // subcommand 0x11 send to MCU
+            // if the command is x11, it polls the MCU State? Used with IR Camera or NFC?
+            joycon_send_subcommand(0x11, 0x01, new byte[] {0x00});
+            Thread.sleep(100);
+
+            // subcommand 0x11 send to MCU 
+            // 21 21 00 04 is for NFC
+            joycon_send_subcommand(0x11, 0x21, new byte[] {0x21, 0x00, 0x04});
+            Thread.sleep(100);
+            
+            // 21 21 00 05 for IR
+            joycon_send_subcommand(0x11, 0x21, new byte[] {0x21, 0x00, 0x05});
+            Thread.sleep(100);
+            
+            // no.5, continue sending subcommand 1 to report 0x11
+            joycon_send_subcommand(0x11, 0x01, new byte[] {0x00});
+            Thread.sleep(100);
+            
+            joycon_send_subcommand(0x11, 0x21, new byte[] {0x23, 0x01, 0x07, 0x0f, 0x00, 0x03, 0x00, 0x09});
+            Thread.sleep(100);
+            
+            joycon_send_subcommand(0x11, 0x03, new byte[] {0x02});
+            Thread.sleep(100);
+            
+            //joycon_send_subcommand(0x11, 0x02, new byte[] {0x04, 0x00, 0x00, 0x08});
+            //Thread.sleep(100);
+            
+            joycon_send_subcommand(0x01, 0x21, new byte[] {0x23});
+            Thread.sleep(100);
+            
+            joycon_send_subcommand(0x11, 0x03, new byte[] {0x00});
+          }
 
           Thread.sleep(100);
 
           // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
           //joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
 
-          Thread.sleep(100);
+//          Thread.sleep(100);
 
-          byte[] b = {
-            byte(0xaf), byte(0x00), 
-            byte(0xf0), byte(0x40), byte(0x40), 
-            byte(0xf0), byte(0x00), byte(0x00), 
-            byte(0xf0), byte(0x00), byte(0x00), 
-            byte(0xf0), byte(0x0f), byte(0x00), 
-            byte(0xf0), byte(0x00), byte(0x00)
-          };
-          joycon_send_subcommand(0x1, 0x38, b);
+//          byte[] b = {
+//            byte(0xaf), byte(0x00), 
+//            byte(0xf0), byte(0x40), byte(0x40), 
+//            byte(0xf0), byte(0x00), byte(0x00), 
+//            byte(0xf0), byte(0x00), byte(0x00), 
+//            byte(0xf0), byte(0x0f), byte(0x00), 
+//            byte(0xf0), byte(0x00), byte(0x00)
+//          };
+//          joycon_send_subcommand(0x1, 0x38, b);
 
-          Thread.sleep(100);
+//          Thread.sleep(100);
 
 
-          joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
+//          joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
         } 
         catch(InterruptedException e) {
           println(e);

@@ -1,15 +1,20 @@
 import purejavahidapi.*;
 import purejavahidapi.HidDevice;
 import java.util.List;
+import java.util.Arrays;
 
 public class Joycon {
 
   private HidDevice dev;
   private HidDeviceInfo devInfo;
   private boolean isLeft;
+  private int packetCount=0;
 
   Joycon(int _id) {
     connectDevice(_id);
+    setRemovalListener();
+    setReportListener();
+    changeMode();
   }
 
   private void connectDevice(int _id) { 
@@ -63,27 +68,16 @@ public class Joycon {
   }
 
   private void setReportListener() {
-
     dev.setInputReportListener(new InputReportListener() {
       @Override
         public void onInputReport(HidDevice source, byte Id, byte[] data, int len) {
         System.out.printf("onInputReport: id %d len %d data ", Id, len);
         for (int i = 0; i < len; i++) System.out.printf("%02x ", data[i]);
         System.out.println();
-
-        processIMU(data);
-
-        //processButtonsAndStick(data);
-
-        posX = - ( (1/2) * (gyr_g.z) + (gyr_g.z) ) + posX;
-        posY = (1/2) * (gyr_g.y) + (gyr_g.y) + posY;
-        //vx   = acc_g.z * t + vx;
-        //vy   = acc_g.y * t + vy;
       }
     }
     );
   }
-
 
   private void changeMode() {
     Thread thread = new Thread(new MultiThread() {
@@ -94,7 +88,7 @@ public class Joycon {
           joycon_send_subcommand(0x1, 0x40, new byte[] {0x01});
           Thread.sleep(100);
           ////Standard full mode. Pushes current state @60Hz
-          joycon_send_subcommand(0x1, 0x3, new byte[] {0x31});
+          joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
         } 
         catch(InterruptedException e) {
           println(e);
@@ -103,5 +97,27 @@ public class Joycon {
     }
     );
     thread.start();
+  }
+
+  private void joycon_send_subcommand(int command, int subcommand, byte[] data) {
+    byte[] buf = new byte[0x400];
+    byte[] b = {
+      byte(command), 
+      byte(++(packetCount) & 0xF), // 1 & 0xF -> 0001 AND 1111 -> 0001 -> 1
+      0x00, 0x01, 0x20, 0x40, 0x00, 0x01, 0x40, 0x40, 
+      byte(subcommand)
+    };
+
+    Arrays.fill(int(buf), 0);
+    System.arraycopy(b, 0, buf, 0, b.length);
+    System.arraycopy(data, 0, buf, b.length, data.length);
+    
+    /* 
+    {command, ++(packetCount) & 0xF, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, subcommand, data[0], ... , data[data.length-1]}
+    */
+
+    int len = b.length + data.length;
+
+    dev.setOutputReport(byte(0), buf, len);
   }
 }
