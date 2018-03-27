@@ -4,21 +4,6 @@ int param2 = 500;
 float param3 = 4.0f;
 int param4 = 100;
 
-public enum Button {
-  DPAD_DOWN, 
-    DPAD_RIGHT, 
-    DPAD_LEFT, 
-    DPAD_UP, 
-    SL, 
-    SR, 
-    MINUS, 
-    HOME, 
-    PLUS, 
-    CAPTURE, 
-    STICK, 
-    SHOULDER_1, 
-    SHOULDER_2;
-}
 
 Joycon joycon;
 

@@ -8,8 +8,6 @@ public class Joycon {
 
   private HidDevice     dev;
   private HidDeviceInfo devInfo;
-  private int global_count = 0;
-
   // inner class "Rumble" is defined the last of class "Joycon"
   private Rumble rumble_obj;
 
@@ -20,7 +18,7 @@ public class Joycon {
 
   private float[] stick = {0, 0};
   private short[] stick_raw = {0, 0, 0};
-  private char[] stick_cal = { 0, 0, 0, 0, 0, 0 };
+  private char[]  stick_cal = { 0, 0, 0, 0, 0, 0 };
   private char deadzone;
 
   private short[] acc_r = {0, 0, 0};
@@ -37,6 +35,7 @@ public class Joycon {
 
   public Vector3 i_b, j_b, k_b, k_acc;
 
+  private int global_count = 0;
   private boolean first_imu_packet = true;
   private float filterweight = 0.5f;
   private int timestamp = 0;
@@ -44,7 +43,7 @@ public class Joycon {
   private boolean isLeft;
   private float posX, posY;
   private float vx, vy;
-  int t;
+  private int t;
 
   Joycon() {
     connectDevice();
@@ -60,6 +59,8 @@ public class Joycon {
     rumble_obj = new Rumble(160, 320, 0, 0);
   }
 
+  ////////////////////////////////////////////////////////////////
+  /* initialize methods */
   private void connectDevice() {
     List<HidDeviceInfo> devList = PureJavaHidApi.enumerateDevices();
 
@@ -145,8 +146,8 @@ public class Joycon {
           //Thread.sleep(100);
 
           //buf[0] = 0x02;
-          joycon_send_subcommand(0x1, 0x1, new byte[]{0x02});
-          Thread.sleep(100);
+          //joycon_send_subcommand(0x1, 0x1, new byte[]{0x02});
+          //Thread.sleep(100);
 
           //// 0x01: Bluetooth manual pairing
           //buf[0] = 0x03;
@@ -217,11 +218,34 @@ public class Joycon {
     // {command, ++(global_count) & 0xF, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, subcommand, data[0], ... , data[data.length-1]}
   }
 
+  public void setRumble(float low_freq, float high_freq, float amp, int time) {
+    //if (state <= Joycon.state_.ATTACHED) return;
+    if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
+      rumble_obj = new Rumble(low_freq, high_freq, amp, time);
+    }
+  }
+
+  public void sendRumble(byte[] buf) {
+    byte[] buf_ = new byte[report_len];
+    buf_[0] = 0x10;
+    buf_[1] = byte(global_count);
+    if (global_count == 0xf) global_count = 0;
+    else ++global_count;
+    for (int i=0; i<buf.length; i++) {
+      buf_[i+2] = buf[i];
+    }
+    //PrintArray(buf_, DebugType.RUMBLE, format: 
+    //  "Rumble data sent: {0:S}");
+    dev.setOutputReport(byte(0x0), buf_, report_len);
+  }
+
   public void initialPosition() {
     posX = 0;
     posY = 0;
   }
 
+  ///////////////////////////////////////////////////////////////
+  /* get methods */
   public boolean getButtonDown(Button b) {
     return buttons_down[(int)b.ordinal()];
   }
@@ -246,27 +270,8 @@ public class Joycon {
     return gyr_g;
   }
 
-  public void setRumble(float low_freq, float high_freq, float amp, int time) {
-    //if (state <= Joycon.state_.ATTACHED) return;
-    if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
-      rumble_obj = new Rumble(low_freq, high_freq, amp, time);
-    }
-  }
-
-  public void sendRumble(byte[] buf) {
-    byte[] buf_ = new byte[report_len];
-    buf_[0] = 0x10;
-    buf_[1] = byte(global_count);
-    if (global_count == 0xf) global_count = 0;
-    else ++global_count;
-    for (int i=0; i<buf.length; i++) {
-      buf_[i+2] = buf[i];
-    }
-    //PrintArray(buf_, DebugType.RUMBLE, format: 
-    //  "Rumble data sent: {0:S}");
-    dev.setOutputReport(byte(0x0), buf_, report_len);
-  }
-
+  //////////////////////////////////////////////////////////////
+  /* Process Stick Values */
   private int processButtonsAndStick(byte[] report_buf) {
     if (report_buf[0] == 0x00) return -1;
 
@@ -426,7 +431,7 @@ public class Joycon {
     if (abs(acc_g.z) > abs(max[2])) max[2] = acc_g.z;
   }
 
-
+  ////////////////////////////////////////////////////////////////
   // inner class Rumble
   private class Rumble {
     private float h_f, amp, l_f;
