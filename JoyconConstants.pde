@@ -19,3 +19,22 @@ public enum Button {
     SHOULDER_1, 
     SHOULDER_2;
 }
+
+
+public enum Subcommand {
+  SetInputReportMode(0x03), 
+    SetPlayerLights(0x30), 
+    SetHomeLight(0x38),
+    EnableIMU(0x40), 
+    EnableVibration(0x48);
+
+  private int id;
+
+  private Subcommand(final int id) {
+    this.id = id;
+  }
+
+  public byte getId() {
+    return (byte)this.id;
+  }
+}
