@@ -37,7 +37,7 @@ void displayInputText(Joycon j) {
   if (j.getButton(Button.SHOULDER_2)) {
     text("SHOULDER_2", width/2, height/2-20);
   }
-  if (j.getButton(Button.DPAD_DOWN))  {
+  if (j.getButton(Button.DPAD_DOWN)) {
     text("DPAD_DOWN", width/2, height/2);
   }
   if (j.getButton(Button.DPAD_RIGHT)) {
@@ -50,7 +50,7 @@ void displayInputText(Joycon j) {
   if (j.getButton(Button.DPAD_UP)) {
     text("DPAD_UP", width/2, height/2+60);
   }
-  if (j.getButton(Button.STICK))   {
+  if (j.getButton(Button.STICK)) {
     text("STICK", width/2, height/2+80);
   }
 }
