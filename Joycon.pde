@@ -4,41 +4,38 @@ import java.util.List;
 import java.util.Arrays;
 
 public class Joycon {
-  private boolean irMode    = true;
-  private boolean vibMode   = true;
-  private boolean lightMode = true;
 
   private HidDevice     dev;
   private HidDeviceInfo devInfo;
   // inner class "Rumble" is defined the last of class "Joycon"
-  private Rumble rumble_obj;
+  private Rumble rumble;
 
-  private boolean[] buttons_down = new boolean[13];
-  private boolean[] buttons_up   = new boolean[13];
+  private boolean[] buttonsDown = new boolean[13];
+  private boolean[] buttonsUp   = new boolean[13];
   private boolean[] buttons      = new boolean[13];
   private boolean[] down_        = new boolean[13];
 
   private float[] stick = {0, 0};
-  private short[] stick_raw = {0, 0, 0};
-  private char[]  stick_cal = { 0, 0, 0, 0, 0, 0 };
+  private short[] stickRaw = {0, 0, 0};
+  private char[]  stickCal = { 0, 0, 0, 0, 0, 0 };
   private char deadzone;
 
-  private short[] acc_r     = {0, 0, 0};
-  private Vector3 acc_g     = new Vector3(0, 0, 0);
-  private Vector3 pre_acc_g = new Vector3(0, 0, 0);
+  private short[] accR     = {0, 0, 0};
+  private Vector3 accG     = new Vector3(0, 0, 0);
+  private Vector3 preAccG = new Vector3(0, 0, 0);
 
-  private short[] gyr_r       = {0, 0, 0};
-  private short[] gyr_neutral = {0, 0, 0};
-  private Vector3 gyr_g       = new Vector3(0, 0, 0);
-  private Vector3 pre_gyr_g   = new Vector3(0, 0, 0);
+  private short[] gyrR       = {0, 0, 0};
+  private short[] gyrNeutral = {0, 0, 0};
+  private Vector3 gyrG       = new Vector3(0, 0, 0);
+  private Vector3 preGyrG   = new Vector3(0, 0, 0);
 
   float[] max = {0, 0, 0};
   float[] sum = {0, 0, 0};
 
-  public Vector3 i_b, j_b, k_b, k_acc;
+  public Vector3 iB, jB, kB, kAcc;
 
   private int global_count = 0;
-  private boolean first_imu_packet = true;
+  private boolean firstImuPacket = true;
   private float filterweight = 0.5f;
   private int timestamp = 0;
   private int report_len = 49;
@@ -46,7 +43,7 @@ public class Joycon {
   private float posX, posY;
   private float vx, vy;
   private int t;
-  
+
   public byte[] spi() {
     return readSPI((byte)0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9, false);
   }
@@ -63,7 +60,7 @@ public class Joycon {
     vy = 0;
     t  = 0;
     //t  = 1;
-    rumble_obj = new Rumble(160, 320, 0, 0);
+    rumble = new Rumble(160, 320, 0, 0);
   }
 
   ////////////////////////////////////////////////////////////////
@@ -130,10 +127,10 @@ public class Joycon {
         processIMU(data);
         processButtonsAndStick(data);
 
-        posX = - ( (1/2) * (gyr_g.z) + (gyr_g.z) ) + posX;
-        posY = (1/2) * (gyr_g.y) + (gyr_g.y) + posY;
-        //vx   = acc_g.z * t + vx;
-        //vy   = acc_g.y * t + vy;
+        posX = - ( (1/2) * (gyrG.z) + (gyrG.z) ) + posX;
+        posY = (1/2) * (gyrG.y) + (gyrG.y) + posY;
+        //vx   = accG.z * t + vx;
+        //vy   = accG.y * t + vy;
       }
     }
     );
@@ -148,41 +145,14 @@ public class Joycon {
       @Override
         public void run() {
         try {
-          //byte[] buf = new byte[0x400];
-          //Arrays.fill(int(buf), 0);
+          boolean irMode    = false;
+          boolean vibMode   = false;
+          boolean lightMode = true;
 
-
-          //Thread.sleep(100);
-
-          //buf[0] = 0x01;
-          //joycon_send_subcommand(0x1, 0x1, buf);
-
-          //Thread.sleep(100);
-
-          //buf[0] = 0x02;
-          //joycon_send_subcommand(0x1, 0x1, new byte[]{0x02});
-          //Thread.sleep(100);
-
-          //// 0x01: Bluetooth manual pairing
-          //buf[0] = 0x03;
-          //joycon_send_subcommand(0x1, 0x1, buf);
-
-          //Thread.sleep(100);
-
-          //buf[0] = 0x0;
-          //joycon_send_subcommand(0x1, 0x30, buf);
-
-          //Thread.sleep(100);
-
-          //Subcommand 0x40: Enable IMU (6-Axis sensor)
-          joycon_send_subcommand(0x1, 0x40, new byte[] {0x01});
+          joycon_send_subcommand(0x1, Subcommand.EnableIMU.getId(), new byte[] {0x01});
           Thread.sleep(100);
 
-          ////Standard full mode. Pushes current state @60Hz
-          joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
-          Thread.sleep(100);
-
-          joycon_send_subcommand(0x1, 0x48, new byte[] {0x03, 0x03, 0x00, 0x00});
+          joycon_send_subcommand(0x1, Subcommand.SetInputReportMode.getId(), new byte[] {0x30});
           Thread.sleep(100);
 
           if (irMode) {
@@ -191,8 +161,7 @@ public class Joycon {
           }
 
           if (vibMode) {
-            // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
-            joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
+            joycon_send_subcommand(0x1, Subcommand.EnableVibration.getId(), new byte[] {0x01});
             Thread.sleep(100);
           }
 
@@ -206,11 +175,11 @@ public class Joycon {
               byte(0xf0), byte(0x0f), byte(0x00), 
               byte(0xf0), byte(0x00), byte(0x00)
             };
-            joycon_send_subcommand(0x1, 0x38, b);
+            joycon_send_subcommand(0x1, Subcommand.SetHomeLight.getId(), b);
             Thread.sleep(100);
 
             // Light up Player button
-            joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
+            joycon_send_subcommand(0x1, Subcommand.SetInputReportMode.getId(), new byte[] {byte(0xa5)});
             Thread.sleep(100);
           }
         } 
@@ -277,7 +246,7 @@ public class Joycon {
 
   public void startVibration(int p1, int p2, float p3, int p4) {
     this.setRumble(p1, p2, p3, p4);
-    this.sendRumble(this.rumble_obj.getData());
+    this.sendRumble(this.rumble.getData());
   }
 
   private void sendRumble(byte[] buf) {
@@ -297,15 +266,15 @@ public class Joycon {
   ///////////////////////////////////////////////////////////////
   /* set methods */
   private void setRumble(float _lowFreq, float _highFreq, float _amp, int _time) {
-    //if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
-    rumble_obj = new Rumble(_lowFreq, _highFreq, _amp, _time);
-    println(rumble_obj.getData());
+    //if (rumble.timed_rumble == false || rumble.t < 0) {
+    rumble = new Rumble(_lowFreq, _highFreq, _amp, _time);
+    println(rumble.getData());
     //}
   }
 
   /* get methods */
   public boolean getButtonDown(Button b) {
-    return buttons_down[(int)b.ordinal()];
+    return buttonsDown[(int)b.ordinal()];
   }
 
   public boolean getButton(Button b) {
@@ -313,7 +282,7 @@ public class Joycon {
   }
 
   public boolean getButtonUp(Button b) {
-    return buttons_up[(int)b.ordinal()];
+    return buttonsUp[(int)b.ordinal()];
   }
 
   public float[] getStick() {
@@ -321,11 +290,11 @@ public class Joycon {
   }
 
   public Vector3 getAccel() {
-    return acc_g;
+    return accG;
   }
 
   public Vector3 getGyro() {
-    return gyr_g;
+    return gyrG;
   }
 
   //////////////////////////////////////////////////////////////
@@ -333,13 +302,13 @@ public class Joycon {
   private int processButtonsAndStick(byte[] report_buf) {
     if (report_buf[0] == 0x00) return -1;
 
-    stick_raw[0] = report_buf[6 + (isLeft ? 0 : 3)];
-    stick_raw[1] = report_buf[7 + (isLeft ? 0 : 3)];
-    stick_raw[2] = report_buf[8 + (isLeft ? 0 : 3)];
+    stickRaw[0] = report_buf[6 + (isLeft ? 0 : 3)];
+    stickRaw[1] = report_buf[7 + (isLeft ? 0 : 3)];
+    stickRaw[2] = report_buf[8 + (isLeft ? 0 : 3)];
 
     char[] stick_precal = {0, 0};
-    stick_precal[0] = (char)(stick_raw[0] | ((stick_raw[1] & 0xf) << 8));
-    stick_precal[1] = (char)((stick_raw[1] >> 4) | (stick_raw[2] << 4));
+    stick_precal[0] = (char)(stickRaw[0] | ((stickRaw[1] & 0xf) << 8));
+    stick_precal[1] = (char)((stickRaw[1] >> 4) | (stickRaw[2] << 4));
 
     stick = centerSticks(stick_precal);
     for (int i = 0; i < buttons.length; ++i) {
@@ -360,8 +329,8 @@ public class Joycon {
 
     boolean[] down_ = new boolean[13];
     for (int i = 0; i < buttons.length; ++i) {
-      buttons_up[i] = (down_[i] & !buttons[i]);
-      buttons_down[i] = (!down_[i] & buttons[i]);
+      buttonsUp[i] = (down_[i] & !buttons[i]);
+      buttonsDown[i] = (!down_[i] & buttons[i]);
     }
     return 0;
   }
@@ -374,12 +343,12 @@ public class Joycon {
 
     float[] s = { 0, 0 };
     for (int i = 0; i < 2; ++i) {
-      float diff = vals[i] - stick_cal[2 + i];
+      float diff = vals[i] - stickCal[2 + i];
       if (abs(diff) < deadzone) vals[i] = 0;
       else if (diff > 0) { // if axis is above center
-        s[i] = diff / stick_cal[i];
+        s[i] = diff / stickCal[i];
       } else {
-        s[i] = diff / stick_cal[4 + i];
+        s[i] = diff / stickCal[4 + i];
       }
     }
     return s;
@@ -398,50 +367,50 @@ public class Joycon {
       extractIMUValues(report_buf, n);
 
       float dt_sec = 0.005f * dt;
-      sum[0] += gyr_g.x * dt_sec;
-      sum[1] += gyr_g.y * dt_sec;
-      sum[2] += gyr_g.z * dt_sec;
+      sum[0] += gyrG.x * dt_sec;
+      sum[1] += gyrG.y * dt_sec;
+      sum[2] += gyrG.z * dt_sec;
 
       if (!isLeft) {
-        acc_g.y *= -1;
-        acc_g.z *= -1;
-        gyr_g.y *= -1;
-        gyr_g.z *= -1;
+        accG.y *= -1;
+        accG.z *= -1;
+        gyrG.y *= -1;
+        gyrG.z *= -1;
       }
 
-      if (first_imu_packet) {
-        i_b = new Vector3(1, 0, 0);
-        j_b = new Vector3(0, 1, 0);
-        k_b = new Vector3(0, 0, 1);
-        first_imu_packet = false;
+      if (firstImuPacket) {
+        iB = new Vector3(1, 0, 0);
+        jB = new Vector3(0, 1, 0);
+        kB = new Vector3(0, 0, 1);
+        firstImuPacket = false;
       } else {
 
-        Vector3 k = Vector3.Normalize(acc_g);
-        k_acc = new Vector3(-k.x, -k.y, -k.z);
+        Vector3 k = Vector3.Normalize(accG);
+        kAcc = new Vector3(-k.x, -k.y, -k.z);
 
-        Vector3 w_a = Vector3.Cross(k_b, k_acc);
-        Vector3 w_g = new Vector3(-gyr_g.x * dt_sec, -gyr_g.y * dt_sec, -gyr_g.z * dt_sec);
+        Vector3 w_a = Vector3.Cross(kB, kAcc);
+        Vector3 w_g = new Vector3(-gyrG.x * dt_sec, -gyrG.y * dt_sec, -gyrG.z * dt_sec);
 
         Vector3 d_theta = new Vector3(
           (filterweight * w_a.x + w_g.x) / (1f + filterweight), 
           (filterweight * w_a.y + w_g.y) / (1f + filterweight), 
           (filterweight * w_a.z + w_g.z) / (1f + filterweight)
           );
-        Vector3 dxk = Vector3.Cross(d_theta, k_b);
-        k_b = Vector3.Addition(k_b, Vector3.Cross(d_theta, k_b));
-        i_b = Vector3.Addition(i_b, Vector3.Cross(d_theta, i_b));
-        j_b = Vector3.Addition(j_b, Vector3.Cross(d_theta, j_b));
+        Vector3 dxk = Vector3.Cross(d_theta, kB);
+        kB = Vector3.Addition(kB, Vector3.Cross(d_theta, kB));
+        iB = Vector3.Addition(iB, Vector3.Cross(d_theta, iB));
+        jB = Vector3.Addition(jB, Vector3.Cross(d_theta, jB));
         //Correction, ensure new axes are orthogonal
-        float err = Vector3.Dot(i_b, j_b) * 0.5f;
+        float err = Vector3.Dot(iB, jB) * 0.5f;
         Vector3 tmp = Vector3.Normalize(
-          new Vector3(i_b.x - err * j_b.x, i_b.y - err * j_b.y, i_b.z - err * j_b.z)
+          new Vector3(iB.x - err * jB.x, iB.y - err * jB.y, iB.z - err * jB.z)
           );
 
-        j_b = Vector3.Normalize(
-          new Vector3(j_b.x - err * i_b.x, j_b.y - err * i_b.y, j_b.z - err * i_b.z)
+        jB = Vector3.Normalize(
+          new Vector3(jB.x - err * iB.x, jB.y - err * iB.y, jB.z - err * iB.z)
           );
-        i_b = tmp;
-        k_b = Vector3.Cross(i_b, j_b);
+        iB = tmp;
+        kB = Vector3.Cross(iB, jB);
       }
 
       dt = 1;
@@ -452,74 +421,74 @@ public class Joycon {
   }
 
   private void extractIMUValues(byte[] report_buf, int n) {
-    gyr_r[0] = (short)(report_buf[19 + n * 12] | ((report_buf[20 + n * 12] << 8) & 0xff00));
-    gyr_r[1] = (short)(report_buf[21 + n * 12] | ((report_buf[22 + n * 12] << 8) & 0xff00));
-    gyr_r[2] = (short)(report_buf[23 + n * 12] | ((report_buf[24 + n * 12] << 8) & 0xff00));
-    acc_r[0] = (short)(report_buf[13 + n * 12] | ((report_buf[14 + n * 12] << 8) & 0xff00));
-    acc_r[1] = (short)(report_buf[15 + n * 12] | ((report_buf[16 + n * 12] << 8) & 0xff00));
-    acc_r[2] = (short)(report_buf[17 + n * 12] | ((report_buf[18 + n * 12] << 8) & 0xff00));
+    gyrR[0] = (short)(report_buf[19 + n * 12] | ((report_buf[20 + n * 12] << 8) & 0xff00));
+    gyrR[1] = (short)(report_buf[21 + n * 12] | ((report_buf[22 + n * 12] << 8) & 0xff00));
+    gyrR[2] = (short)(report_buf[23 + n * 12] | ((report_buf[24 + n * 12] << 8) & 0xff00));
+    accR[0] = (short)(report_buf[13 + n * 12] | ((report_buf[14 + n * 12] << 8) & 0xff00));
+    accR[1] = (short)(report_buf[15 + n * 12] | ((report_buf[16 + n * 12] << 8) & 0xff00));
+    accR[2] = (short)(report_buf[17 + n * 12] | ((report_buf[18 + n * 12] << 8) & 0xff00));
 
-    pre_acc_g.x = acc_g.x;
-    pre_gyr_g.x = gyr_g.x;
-    acc_g.x = float(acc_r[0]) * 0.00025f;
-    gyr_g.x = (gyr_r[0] - gyr_neutral[0]) * 0.00122187695f;
-    if (abs(acc_g.x) > abs(max[0])) max[0] = acc_g.x;
+    preAccG.x = accG.x;
+    preGyrG.x = gyrG.x;
+    accG.x = float(accR[0]) * 0.00025f;
+    gyrG.x = (gyrR[0] - gyrNeutral[0]) * 0.00122187695f;
+    if (abs(accG.x) > abs(max[0])) max[0] = accG.x;
 
-    pre_acc_g.y = acc_g.y;
-    pre_gyr_g.y = gyr_g.y;
-    acc_g.y = acc_r[1] * 0.00025f;
-    gyr_g.y = (gyr_r[1] - gyr_neutral[1]) * 0.00122187695f;
-    if (abs(acc_g.y) > abs(max[1])) max[1] = acc_g.y;
+    preAccG.y = accG.y;
+    preGyrG.y = gyrG.y;
+    accG.y = accR[1] * 0.00025f;
+    gyrG.y = (gyrR[1] - gyrNeutral[1]) * 0.00122187695f;
+    if (abs(accG.y) > abs(max[1])) max[1] = accG.y;
 
-    pre_acc_g.z = acc_g.z;
-    pre_gyr_g.z = gyr_g.z;
-    acc_g.z = acc_r[2] * 0.00025f;
-    gyr_g.z = (gyr_r[2] - gyr_neutral[2]) * 0.00122187695f;
-    if (abs(acc_g.z) > abs(max[2])) max[2] = acc_g.z;
+    preAccG.z = accG.z;
+    preGyrG.z = gyrG.z;
+    accG.z = accR[2] * 0.00025f;
+    gyrG.z = (gyrR[2] - gyrNeutral[2]) * 0.00122187695f;
+    if (abs(accG.z) > abs(max[2])) max[2] = accG.z;
   }
 
-//  private void dump_calibration_data() {
-//    byte[] buf_ = ReadSPI(0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9); // get user calibration data if possible
-//    bool found = false;
-//    for (int i = 0; i < 9; ++i)
-//    {
-//      if (buf_[i] != 0xff)
-//      {
-//        Debug.Log("Using user stick calibration data.");
-//        found = true;
-//        break;
-//      }
-//    }
-//    if (!found) {
-//      Debug.Log("Using factory stick calibration data.");
-//      buf_ = ReadSPI(0x60, (isLeft ? (byte)0x3d : (byte)0x46), 9); // get user calibration data if possible
-//    }
-//    stick_cal[isLeft ? 0 : 2] = (UInt16)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
-//    stick_cal[isLeft ? 1 : 3] = (UInt16)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
-//    stick_cal[isLeft ? 2 : 4] = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
-//    stick_cal[isLeft ? 3 : 5] = (UInt16)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
-//    stick_cal[isLeft ? 4 : 0] = (UInt16)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
-//    stick_cal[isLeft ? 5 : 1] = (UInt16)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
+  //  private void dump_calibration_data() {
+  //    byte[] buf_ = ReadSPI(0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9); // get user calibration data if possible
+  //    bool found = false;
+  //    for (int i = 0; i < 9; ++i)
+  //    {
+  //      if (buf_[i] != 0xff)
+  //      {
+  //        Debug.Log("Using user stick calibration data.");
+  //        found = true;
+  //        break;
+  //      }
+  //    }
+  //    if (!found) {
+  //      Debug.Log("Using factory stick calibration data.");
+  //      buf_ = ReadSPI(0x60, (isLeft ? (byte)0x3d : (byte)0x46), 9); // get user calibration data if possible
+  //    }
+  //    stickCal[isLeft ? 0 : 2] = (UInt16)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
+  //    stickCal[isLeft ? 1 : 3] = (UInt16)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
+  //    stickCal[isLeft ? 2 : 4] = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
+  //    stickCal[isLeft ? 3 : 5] = (UInt16)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
+  //    stickCal[isLeft ? 4 : 0] = (UInt16)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
+  //    stickCal[isLeft ? 5 : 1] = (UInt16)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
 
 
-//    buf_ = ReadSPI(0x60, (isLeft ? (byte)0x86 : (byte)0x98), 16);
-//    deadzone = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]);
+  //    buf_ = ReadSPI(0x60, (isLeft ? (byte)0x86 : (byte)0x98), 16);
+  //    deadzone = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]);
 
-//    buf_ = ReadSPI(0x80, 0x34, 10);
-//    gyr_neutral[0] = (Int16)(buf_[0] | ((buf_[1] << 8) & 0xff00));
-//    gyr_neutral[1] = (Int16)(buf_[2] | ((buf_[3] << 8) & 0xff00));
-//    gyr_neutral[2] = (Int16)(buf_[4] | ((buf_[5] << 8) & 0xff00));
+  //    buf_ = ReadSPI(0x80, 0x34, 10);
+  //    gyrNeutral[0] = (Int16)(buf_[0] | ((buf_[1] << 8) & 0xff00));
+  //    gyrNeutral[1] = (Int16)(buf_[2] | ((buf_[3] << 8) & 0xff00));
+  //    gyrNeutral[2] = (Int16)(buf_[4] | ((buf_[5] << 8) & 0xff00));
 
 
-//    // This is an extremely messy way of checking to see whether there is user stick calibration data present, but I've seen conflicting user calibration data on blank Joy-Cons. Worth another look eventually.
-//    if (gyr_neutral[0] + gyr_neutral[1] + gyr_neutral[2] == -3 || Math.Abs(gyr_neutral[0]) > 100 || Math.Abs(gyr_neutral[1]) > 100 || Math.Abs(gyr_neutral[2]) > 100){
-//      buf_ = ReadSPI(0x60, 0x29, 10);
-//      gyr_neutral[0] = (Int16)(buf_[3] | ((buf_[4] << 8) & 0xff00));
-//      gyr_neutral[1] = (Int16)(buf_[5] | ((buf_[6] << 8) & 0xff00));
-//      gyr_neutral[2] = (Int16)(buf_[7] | ((buf_[8] << 8) & 0xff00));
-   
-//    }
-//  }
+  //    // This is an extremely messy way of checking to see whether there is user stick calibration data present, but I've seen conflicting user calibration data on blank Joy-Cons. Worth another look eventually.
+  //    if (gyrNeutral[0] + gyrNeutral[1] + gyrNeutral[2] == -3 || Math.Abs(gyrNeutral[0]) > 100 || Math.Abs(gyrNeutral[1]) > 100 || Math.Abs(gyrNeutral[2]) > 100){
+  //      buf_ = ReadSPI(0x60, 0x29, 10);
+  //      gyrNeutral[0] = (Int16)(buf_[3] | ((buf_[4] << 8) & 0xff00));
+  //      gyrNeutral[1] = (Int16)(buf_[5] | ((buf_[6] << 8) & 0xff00));
+  //      gyrNeutral[2] = (Int16)(buf_[7] | ((buf_[8] << 8) & 0xff00));
+
+  //    }
+  //  }
 
   private byte[] readSPI(byte _addr1, byte _addr2, int _len, boolean print) {
     byte[] buf = { _addr2, _addr1, 0x00, 0x00, (byte)_len };
