@@ -24,6 +24,7 @@ public enum Button {
 public enum Subcommand {
   SetInputReportMode(0x03), 
     SetPlayerLights(0x30), 
+    SetHomeLight(0x38),
     EnableIMU(0x40), 
     EnableVibration(0x48);
 

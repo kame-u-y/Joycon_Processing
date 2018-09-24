@@ -180,7 +180,6 @@ public class Joycon {
 
             // Light up Player button
             joycon_send_subcommand(0x1, Subcommand.SetInputReportMode.getId(), new byte[] {byte(0xa5)});
-            Thread.sleep(100);
           }
         } 
         catch(InterruptedException e) {
@@ -198,26 +197,15 @@ public class Joycon {
   }
 
   public void detach() {
-    //Thread thread2 = new Thread(new MultiThread() {
-    //  @Override
-    //  public void run() {
-    //    try {
-    joycon_send_subcommand(0x01, 0x30, new byte[] { 0x0 });
-    //Thread.sleep(100);
+    joycon_send_subcommand(0x01, Subcommand.SetInputReportMode.getId(), new byte[] { 0x3f });
     delay(100);
-    joycon_send_subcommand(0x01, 0x40, new byte[] { 0x0 });
+    joycon_send_subcommand(0x01, Subcommand.SetPlayerLights.getId(), new byte[] { 0x0 });
     delay(100);
-    joycon_send_subcommand(0x01, 0x48, new byte[] { 0x0 });
+    joycon_send_subcommand(0x01, Subcommand.SetHomeLight.getId(), new byte[] { 0x0 });
     delay(100);
-    joycon_send_subcommand(0x01, 0x03, new byte[] { 0x3f });
-    //} 
-    //catch(InterruptedException e) {
-    //  println(e);
-    //}
-    //}
-    //}
-    //);
-    //thread2.start();
+    joycon_send_subcommand(0x01, Subcommand.EnableIMU.getId(), new byte[] { 0x0 });
+    delay(100);
+    joycon_send_subcommand(0x01, Subcommand.EnableVibration.getId(), new byte[] { 0x0 });
   }
 
   /////////////////////////////////////////////////////////////
