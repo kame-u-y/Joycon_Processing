@@ -13,7 +13,6 @@ public class Joycon {
   private boolean[] buttonsDown = new boolean[13];
   private boolean[] buttonsUp   = new boolean[13];
   private boolean[] buttons      = new boolean[13];
-  private boolean[] down_        = new boolean[13];
 
   private float[] stick = {0, 0};
   private short[] stickRaw = {0, 0, 0};
@@ -149,24 +148,19 @@ public class Joycon {
           boolean vibMode   = false;
           boolean lightMode = true;
 
-          joycon_send_subcommand(0x1, Subcommand.EnableIMU.getId(), new byte[] {0x01});
+          joyconSendSubcommand(0x1, Subcommand.EnableIMU.getId(), new byte[] {0x01});
           Thread.sleep(100);
-
-          joycon_send_subcommand(0x1, Subcommand.SetInputReportMode.getId(), new byte[] {0x30});
+          joyconSendSubcommand(0x1, Subcommand.SetInputReportMode.getId(), new byte[] {0x30});
           Thread.sleep(100);
-
           if (irMode) {
             // I can't do it.
             Thread.sleep(100);
           }
-
           if (vibMode) {
-            joycon_send_subcommand(0x1, Subcommand.EnableVibration.getId(), new byte[] {0x01});
+            joyconSendSubcommand(0x1, Subcommand.EnableVibration.getId(), new byte[] {0x01});
             Thread.sleep(100);
           }
-
-          if (lightMode) {
-            // Light up Home button
+          if (lightMode) {            
             byte[] b = {
               byte(0xaf), byte(0x00), 
               byte(0xf0), byte(0x40), byte(0x40), 
@@ -175,11 +169,10 @@ public class Joycon {
               byte(0xf0), byte(0x0f), byte(0x00), 
               byte(0xf0), byte(0x00), byte(0x00)
             };
-            joycon_send_subcommand(0x1, Subcommand.SetHomeLight.getId(), b);
+            joyconSendSubcommand(0x1, Subcommand.SetHomeLight.getId(), b);
             Thread.sleep(100);
-
-            // Light up Player button
-            joycon_send_subcommand(0x1, Subcommand.SetInputReportMode.getId(), new byte[] {byte(0xa5)});
+            joyconSendSubcommand(0x1, Subcommand.SetPlayerLights.getId(), new byte[] {byte(0xa5)});
+            Thread.sleep(100);
           }
         } 
         catch(InterruptedException e) {
@@ -197,22 +190,22 @@ public class Joycon {
   }
 
   public void detach() {
-    joycon_send_subcommand(0x01, Subcommand.SetInputReportMode.getId(), new byte[] { 0x3f });
+    joyconSendSubcommand(0x01, Subcommand.SetInputReportMode.getId(), new byte[] { 0x3f });
     delay(100);
-    joycon_send_subcommand(0x01, Subcommand.SetPlayerLights.getId(), new byte[] { 0x0 });
+    joyconSendSubcommand(0x01, Subcommand.SetPlayerLights.getId(), new byte[] { 0x0 });
     delay(100);
-    joycon_send_subcommand(0x01, Subcommand.SetHomeLight.getId(), new byte[] { 0x0 });
+    joyconSendSubcommand(0x01, Subcommand.SetHomeLight.getId(), new byte[] { 0x0 });
     delay(100);
-    joycon_send_subcommand(0x01, Subcommand.EnableIMU.getId(), new byte[] { 0x0 });
+    joyconSendSubcommand(0x01, Subcommand.EnableIMU.getId(), new byte[] { 0x0 });
     delay(100);
-    joycon_send_subcommand(0x01, Subcommand.EnableVibration.getId(), new byte[] { 0x0 });
+    joyconSendSubcommand(0x01, Subcommand.EnableVibration.getId(), new byte[] { 0x0 });
   }
 
   /////////////////////////////////////////////////////////////
   /* HID output methods */
 
   // {command, ++(global_count) & 0xF, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, subcommand, data[0], ... , data[data.length-1]}
-  private void joycon_send_subcommand(int command, int subcommand, byte[] data) {
+  private void joyconSendSubcommand(int command, int subcommand, byte[] data) {
     if (devInfo==null) {
       println("connection error");
       return;
@@ -261,16 +254,8 @@ public class Joycon {
   }
 
   /* get methods */
-  public boolean getButtonDown(Button b) {
-    return buttonsDown[(int)b.ordinal()];
-  }
-
   public boolean getButton(Button b) {
     return buttons[(int)b.ordinal()];
-  }
-
-  public boolean getButtonUp(Button b) {
-    return buttonsUp[(int)b.ordinal()];
   }
 
   public float[] getStick() {
@@ -287,39 +272,32 @@ public class Joycon {
 
   //////////////////////////////////////////////////////////////
   /* process stick values methods */
-  private int processButtonsAndStick(byte[] report_buf) {
-    if (report_buf[0] == 0x00) return -1;
+  private int processButtonsAndStick(byte[] reportBuf) {
+    if (reportBuf[0] == 0x00) return -1;
 
-    stickRaw[0] = report_buf[6 + (isLeft ? 0 : 3)];
-    stickRaw[1] = report_buf[7 + (isLeft ? 0 : 3)];
-    stickRaw[2] = report_buf[8 + (isLeft ? 0 : 3)];
+    stickRaw[0] = reportBuf[6 + (isLeft ? 0 : 3)];
+    stickRaw[1] = reportBuf[7 + (isLeft ? 0 : 3)];
+    stickRaw[2] = reportBuf[8 + (isLeft ? 0 : 3)];
 
     char[] stick_precal = {0, 0};
     stick_precal[0] = (char)(stickRaw[0] | ((stickRaw[1] & 0xf) << 8));
     stick_precal[1] = (char)((stickRaw[1] >> 4) | (stickRaw[2] << 4));
 
     stick = centerSticks(stick_precal);
-    for (int i = 0; i < buttons.length; ++i) {
-      down_[i] = buttons[i];
-    }
-    buttons[(int)Button.DPAD_DOWN.ordinal()]  = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
-    buttons[(int)Button.DPAD_RIGHT.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
-    buttons[(int)Button.DPAD_UP.ordinal()]    = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
-    buttons[(int)Button.DPAD_LEFT.ordinal()]  = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
-    buttons[(int)Button.HOME.ordinal()]       = ((report_buf[4] & 0x10) != 0);
-    buttons[(int)Button.MINUS.ordinal()]      = ((report_buf[4] & 0x01) != 0);
-    buttons[(int)Button.PLUS.ordinal()]       = ((report_buf[4] & 0x02) != 0);
-    buttons[(int)Button.STICK.ordinal()]      = ((report_buf[4] & (isLeft ? 0x08 : 0x04)) != 0);
-    buttons[(int)Button.SHOULDER_1.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
-    buttons[(int)Button.SHOULDER_2.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
-    buttons[(int)Button.SR.ordinal()]         = (report_buf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
-    buttons[(int)Button.SL.ordinal()]         = (report_buf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
 
-    boolean[] down_ = new boolean[13];
-    for (int i = 0; i < buttons.length; ++i) {
-      buttonsUp[i] = (down_[i] & !buttons[i]);
-      buttonsDown[i] = (!down_[i] & buttons[i]);
-    }
+    buttons[(int)Button.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
+    buttons[(int)Button.DPAD_RIGHT.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
+    buttons[(int)Button.DPAD_UP.ordinal()]    = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
+    buttons[(int)Button.DPAD_LEFT.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
+    buttons[(int)Button.HOME.ordinal()]       = ((reportBuf[4] & 0x10) != 0);
+    buttons[(int)Button.MINUS.ordinal()]      = ((reportBuf[4] & 0x01) != 0);
+    buttons[(int)Button.PLUS.ordinal()]       = ((reportBuf[4] & 0x02) != 0);
+    buttons[(int)Button.STICK.ordinal()]      = ((reportBuf[4] & (isLeft ? 0x08 : 0x04)) != 0);
+    buttons[(int)Button.SHOULDER_1.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
+    buttons[(int)Button.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
+    buttons[(int)Button.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
+    buttons[(int)Button.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
+    
     return 0;
   }
 
@@ -345,14 +323,14 @@ public class Joycon {
 
   /////////////////////////////////////////////////////////////////
   /* process IMU values */
-  private int processIMU(byte[] report_buf) {
+  private int processIMU(byte[] reportBuf) {
 
-    int dt = (report_buf[1] - timestamp);
-    if (report_buf[1] < timestamp) dt += 0x100;
+    int dt = (reportBuf[1] - timestamp);
+    if (reportBuf[1] < timestamp) dt += 0x100;
 
     for (int n=0; n<3; n++) {
 
-      extractIMUValues(report_buf, n);
+      extractIMUValues(reportBuf, n);
 
       float dt_sec = 0.005f * dt;
       sum[0] += gyrG.x * dt_sec;
@@ -403,18 +381,18 @@ public class Joycon {
 
       dt = 1;
     }
-    timestamp = report_buf[1] + 2;
+    timestamp = reportBuf[1] + 2;
 
     return 0;
   }
 
-  private void extractIMUValues(byte[] report_buf, int n) {
-    gyrR[0] = (short)(report_buf[19 + n * 12] | ((report_buf[20 + n * 12] << 8) & 0xff00));
-    gyrR[1] = (short)(report_buf[21 + n * 12] | ((report_buf[22 + n * 12] << 8) & 0xff00));
-    gyrR[2] = (short)(report_buf[23 + n * 12] | ((report_buf[24 + n * 12] << 8) & 0xff00));
-    accR[0] = (short)(report_buf[13 + n * 12] | ((report_buf[14 + n * 12] << 8) & 0xff00));
-    accR[1] = (short)(report_buf[15 + n * 12] | ((report_buf[16 + n * 12] << 8) & 0xff00));
-    accR[2] = (short)(report_buf[17 + n * 12] | ((report_buf[18 + n * 12] << 8) & 0xff00));
+  private void extractIMUValues(byte[] reportBuf, int n) {
+    gyrR[0] = (short)(reportBuf[19 + n * 12] | ((reportBuf[20 + n * 12] << 8) & 0xff00));
+    gyrR[1] = (short)(reportBuf[21 + n * 12] | ((reportBuf[22 + n * 12] << 8) & 0xff00));
+    gyrR[2] = (short)(reportBuf[23 + n * 12] | ((reportBuf[24 + n * 12] << 8) & 0xff00));
+    accR[0] = (short)(reportBuf[13 + n * 12] | ((reportBuf[14 + n * 12] << 8) & 0xff00));
+    accR[1] = (short)(reportBuf[15 + n * 12] | ((reportBuf[16 + n * 12] << 8) & 0xff00));
+    accR[2] = (short)(reportBuf[17 + n * 12] | ((reportBuf[18 + n * 12] << 8) & 0xff00));
 
     preAccG.x = accG.x;
     preGyrG.x = gyrG.x;
@@ -484,7 +462,7 @@ public class Joycon {
     byte[] buf_ = new byte[_len + 20];
 
     for (int i = 0; i < 100; i++) {
-      joycon_send_subcommand(0x01, 0x10, buf);
+      joyconSendSubcommand(0x01, 0x10, buf);
       if (buf_[15] == _addr2 && buf_[16] == _addr1) {
         break;
       }
