@@ -275,7 +275,12 @@ public class Joycon {
     dev.setOutputReport(byte(0), buf, len);
   }
 
-  public void sendRumble(byte[] buf) {
+  public void startVibration(int p1, int p2, float p3, int p4) {
+    this.setRumble(p1, p2, p3, p4);
+    this.sendRumble(this.rumble_obj.getData());
+  }
+
+  private void sendRumble(byte[] buf) {
     if (devInfo==null) {
       println("connection error");
       return;
@@ -291,7 +296,7 @@ public class Joycon {
 
   ///////////////////////////////////////////////////////////////
   /* set methods */
-  public void setRumble(float _lowFreq, float _highFreq, float _amp, int _time) {
+  private void setRumble(float _lowFreq, float _highFreq, float _amp, int _time) {
     //if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
     rumble_obj = new Rumble(_lowFreq, _highFreq, _amp, _time);
     println(rumble_obj.getData());
