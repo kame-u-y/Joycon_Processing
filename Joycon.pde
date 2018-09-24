@@ -28,8 +28,8 @@ public class Joycon {
   private Vector3 gyrG       = new Vector3(0, 0, 0);
   private Vector3 preGyrG   = new Vector3(0, 0, 0);
 
-  float[] max = {0, 0, 0};
-  float[] sum = {0, 0, 0};
+  private float[] max = {0, 0, 0};
+  private float[] sum = {0, 0, 0};
 
   public Vector3 iB, jB, kB, kAcc;
 
@@ -38,7 +38,7 @@ public class Joycon {
   private float filterweight = 0.5f;
   private int timestamp = 0;
   private int report_len = 49;
-  private boolean isLeft = false;
+  private final boolean isLeft;
   private float posX, posY;
   private float vx, vy;
   private int t;
@@ -47,19 +47,23 @@ public class Joycon {
     return readSPI((byte)0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9, false);
   }
 
-  Joycon(int _id) {
-    if (_id == JoyconConstants.LEFT_ID) isLeft = true;
+  public Joycon(int _id) {
+    if (_id == JoyconConstants.LEFT_ID) {
+      this.isLeft = true;
+    } else {
+      this.isLeft = false;
+    }
     connectDevice(_id);
     setReportListener();
     setRemovalListener();
     changeMode();
-    posX = 0;
-    posY = 0;
-    vx = 0;
-    vy = 0;
-    t  = 0;
-    //t  = 1;
-    rumble = new Rumble(160, 320, 0, 0);
+    this.posX = 0;
+    this.posY = 0;
+    this.vx = 0;
+    this.vy = 0;
+    this.t  = 0;
+    //this.t  = 1;
+    this.rumble = new Rumble(160, 320, 0, 0);
   }
 
   ////////////////////////////////////////////////////////////////
@@ -71,7 +75,7 @@ public class Joycon {
       if ( info.getVendorId()  != JoyconConstants.VENDOR_ID ) continue;
       if ( info.getProductId() != _id ) continue;
 
-      devInfo = info;
+      this.devInfo = info;
       //System.out.printf(
       //  "VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", 
       //  info.getVendorId(), 
@@ -247,7 +251,7 @@ public class Joycon {
   ///////////////////////////////////////////////////////////////
   /* set methods */
   private void setRumble(float _lowFreq, float _highFreq, float _amp, int _time) {
-    //if (rumble.timed_rumble == false || rumble.t < 0) {
+    //if (rumble.timedRumble == false || rumble.t < 0) {
     rumble = new Rumble(_lowFreq, _highFreq, _amp, _time);
     println(rumble.getData());
     //}
@@ -297,7 +301,7 @@ public class Joycon {
     buttons[(int)Button.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
     buttons[(int)Button.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
     buttons[(int)Button.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
-    
+
     return 0;
   }
 
@@ -458,7 +462,7 @@ public class Joycon {
 
   private byte[] readSPI(byte _addr1, byte _addr2, int _len, boolean print) {
     byte[] buf = { _addr2, _addr1, 0x00, 0x00, (byte)_len };
-    byte[] read_buf = new byte[_len];
+    byte[] readBuf = new byte[_len];
     byte[] buf_ = new byte[_len + 20];
 
     for (int i = 0; i < 100; i++) {
@@ -467,26 +471,26 @@ public class Joycon {
         break;
       }
     }
-    System.arraycopy(buf_, 20, read_buf, 0, _len);
-    return read_buf;
+    System.arraycopy(buf_, 20, readBuf, 0, _len);
+    return readBuf;
   }
 
   ////////////////////////////////////////////////////////////////
   // inner class Rumble
   private class Rumble {
-    private float h_f, amp, l_f;
+    private float highFreq, amplitude, lowFreq;
     public float t;
-    public boolean timed_rumble;
+    public boolean timedRumble;
 
     Rumble(float _lowFreq, float _highFreq, float _amplitude, int _time) {
-      l_f = _lowFreq;
-      h_f = _highFreq;
-      amp = _amplitude;
-      timed_rumble = false;
+      lowFreq = _lowFreq;
+      highFreq = _highFreq;
+      amplitude = _amplitude;
+      timedRumble = false;
       t = 0;
       if (_time != 0) {
         t = _time / 1000f;
-        timed_rumble = true;
+        timedRumble = true;
       }
     }
 
@@ -501,51 +505,51 @@ public class Joycon {
     }
 
     public byte[] getData() {
-      byte[] rumble_data = new byte[8];
-      if (amp == 0.0f) {
-        rumble_data[0] = 0x0;
-        rumble_data[1] = 0x1;
-        rumble_data[2] = 0x40;
-        rumble_data[3] = 0x40;
+      byte[] rumbleData = new byte[8];
+      if (amplitude == 0.0f) {
+        rumbleData[0] = 0x0;
+        rumbleData[1] = 0x1;
+        rumbleData[2] = 0x40;
+        rumbleData[3] = 0x40;
       } else {
-        l_f = clamp(l_f, 40.875885f, 626.286133f);
-        amp = clamp(amp, 0.0f, 1.0f);
-        h_f = clamp(h_f, 81.75177f, 1252.572266f);
-        char hf = (char)((round(32f * log2(h_f * 0.1f)) - 0x60) * 4);
-        byte lf = (byte)(round(32f * log2(l_f * 0.1f)) - 0x40);
-        byte hf_amp;
-        if (amp == 0) hf_amp = 0;
-        else if (amp < 0.117) hf_amp = (byte)(((log2(amp * 1000) * 32) - 0x60) / (5 - pow(amp, 2)) - 1);
-        else if (amp < 0.23) hf_amp = (byte)(((log2(amp * 1000) * 32) - 0x60) - 0x5c);
-        else hf_amp = (byte)((((log2(amp * 1000) * 32) - 0x60) * 2) - 0xf6);
+        lowFreq   = clamp(lowFreq, 40.875885f, 626.286133f);
+        amplitude = clamp(amplitude, 0.0f, 1.0f);
+        highFreq  = clamp(highFreq, 81.75177f, 1252.572266f);
+        char hf = (char)((round(32f * log2(this.highFreq * 0.1f)) - 0x60) * 4);
+        byte lf = (byte)(round(32f * log2(this.lowFreq * 0.1f)) - 0x40);
+        byte hfAmp;
+        if (amplitude == 0) hfAmp = 0;
+        else if (amplitude < 0.117) hfAmp = (byte)(((log2(amplitude * 1000) * 32) - 0x60) / (5 - pow(amplitude, 2)) - 1);
+        else if (amplitude < 0.23) hfAmp = (byte)(((log2(amplitude * 1000) * 32) - 0x60) - 0x5c);
+        else hfAmp = (byte)((((log2(amplitude * 1000) * 32) - 0x60) * 2) - 0xf6);
 
-        char lf_amp = (char)(round(hf_amp) * .5);
-        byte parity = (byte)(lf_amp % 2);
+        char lfAmp = (char)(round(hfAmp) * .5);
+        byte parity = (byte)(lfAmp % 2);
         if (parity > 0) {
-          --lf_amp;
+          --lfAmp;
         }
 
-        lf_amp = (char)(lf_amp >> 1);
-        lf_amp += 0x40;
-        if (parity > 0) lf_amp |= 0x8000;
-        rumble_data = new byte[8];
-        rumble_data[0] = (byte)(hf & 0xff);
-        rumble_data[1] = (byte)((hf >> 8) & 0xff);
-        rumble_data[2] = lf;
-        rumble_data[1] += hf_amp;
-        rumble_data[2] += (byte)((lf_amp >> 8) & 0xff);
-        rumble_data[3] += (byte)(lf_amp & 0xff);
+        lfAmp = (char)(lfAmp >> 1);
+        lfAmp += 0x40;
+        if (parity > 0) lfAmp |= 0x8000;
+        rumbleData = new byte[8];
+        rumbleData[0] = (byte)(hf & 0xff);
+        rumbleData[1] = (byte)((hf >> 8) & 0xff);
+        rumbleData[2] = lf;
+        rumbleData[1] += hfAmp;
+        rumbleData[2] += (byte)((lfAmp >> 8) & 0xff);
+        rumbleData[3] += (byte)(lfAmp & 0xff);
       }
       for (int i = 0; i < 4; ++i) {
-        rumble_data[4 + i] = rumble_data[i];
+        rumbleData[4 + i] = rumbleData[i];
       }
       //Debug.Log(string.Format("Encoded hex freq: {0:X2}", encoded_hex_freq));
-      //Debug.Log(string.Format("lf_amp: {0:X4}", lf_amp));
-      //Debug.Log(string.Format("hf_amp: {0:X2}", hf_amp));
-      //Debug.Log(string.Format("l_f: {0:F}", l_f));
+      //Debug.Log(string.Format("lfAmp: {0:X4}", lfAmp));
+      //Debug.Log(string.Format("hfAmp: {0:X2}", hfAmp));
+      //Debug.Log(string.Format("lf: {0:F}", lf));
       //Debug.Log(string.Format("hf: {0:X4}", hf));
       //Debug.Log(string.Format("lf: {0:X2}", lf));
-      return rumble_data;
+      return rumbleData;
     }
   }
 }

@@ -15,15 +15,15 @@ void draw() {
   background(bg);
   noStroke();
 
-  Vector3 accelLeft = joyconLeft.getAccel();
-  Vector3 gyroLeft  = joyconLeft.getGyro();
+  Vector3 leftAccel = joyconLeft.getAccel();
+  Vector3 leftGyro  = joyconLeft.getGyro();
   fill(random(255), 0, 0);
   ellipse(width/2 + joyconLeft.posX*10, height/2 + joyconLeft.posY*10, 10, 10);
   displayInputText(joyconLeft);
 
-  Vector3 accelRight = joyconRight.getAccel();
-  Vector3 gyroRight  = joyconRight.getGyro();
-  fill(0, random(100, 255), 0);
+  Vector3 rightAccel = joyconRight.getAccel();
+  Vector3 rightGyro  = joyconRight.getGyro();
+  fill(0, 255, 0);
   ellipse(width/2 + joyconRight.posX*10, height/2 + joyconRight.posY*10, 100, 100);
   displayInputText(joyconRight);
 }
