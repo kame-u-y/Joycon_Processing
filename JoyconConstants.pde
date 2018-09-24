@@ -34,7 +34,7 @@ public enum Subcommand {
     this.id = id;
   }
 
-  public int getId() {
-    return this.id;
+  public byte getId() {
+    return (byte)this.id;
   }
 }
