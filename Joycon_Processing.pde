@@ -1,13 +1,13 @@
 float bg = 100;
 
-Joycon joyconLeft;
+//Joycon joyconLeft;
 Joycon joyconRight;
 
 void setup() {
   size(600, 600);
   //fullScreen();
 
-  joyconLeft  = new Joycon(JoyconConstants.LEFT_ID);
+  //joyconLeft  = new Joycon(JoyconConstants.LEFT_ID);
   joyconRight = new Joycon(JoyconConstants.RIGHT_ID);
 }
 
@@ -15,14 +15,25 @@ void draw() {
   background(bg);
   noStroke();
 
-  Vector3 leftAccel = joyconLeft.getAccel();
-  Vector3 leftGyro  = joyconLeft.getGyro();
-  fill(random(255), 0, 0);
-  ellipse(width/2 + joyconLeft.posX*10, height/2 + joyconLeft.posY*10, 10, 10);
-  displayInputText(joyconLeft);
+  //Vector3 leftAccel = joyconLeft.getAccel();
+  //Vector3 leftGyro  = joyconLeft.getGyro();
+  //fill(random(255), 0, 0);
+  //ellipse(width/2 + joyconLeft.posX*10, height/2 + joyconLeft.posY*10, 10, 10);
+  //displayInputText(joyconLeft);
 
   Vector3 rightAccel = joyconRight.getAccel();
   Vector3 rightGyro  = joyconRight.getGyro();
+  if (frameCount%100==0) {
+    println(
+      nf(rightAccel.x, 1, 9), 
+      nf(rightAccel.y, 1, 9), 
+      nf(rightAccel.z, 1, 9), 
+      nf(rightGyro.x, 1, 9), 
+      nf(rightGyro.y, 1, 9), 
+      nf(rightGyro.z, 1, 9)
+      );
+  }
+
   fill(0, 255, 0);
   ellipse(width/2 + joyconRight.posX*10, height/2 + joyconRight.posY*10, 100, 100);
   displayInputText(joyconRight);
@@ -45,7 +56,7 @@ void displayInputText(Joycon j) {
   }
   if (j.getButton(Button.DPAD_LEFT)) {
     text("DPAD_LEFT", width/2, height/2+40);
-    j.initialPosition();
+    j.initializePosition();
   }
   if (j.getButton(Button.DPAD_UP)) {
     text("DPAD_UP", width/2, height/2+60);
@@ -65,8 +76,8 @@ void startVibration(Joycon j) {
 }
 
 void dispose() {
-  joyconLeft.detach();
-  joyconRight.detach();
+  //joyconLeft.disconnectDevice();
+  joyconRight.disconnectDevice();
   println(true);
 }
 
