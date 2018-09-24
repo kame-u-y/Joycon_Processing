@@ -7,7 +7,7 @@ public class Joycon {
 
   private HidDevice dev;
   private HidDeviceInfo devInfo;
-  private boolean isLeft;
+  private boolean isLeft = false;
   private int packetCount=0;
 
   Joycon(int _id) {

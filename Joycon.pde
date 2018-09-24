@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.Arrays;
 
 public class Joycon {
-  private boolean ir_mode = true;
+  private boolean irMode    = true;
+  private boolean vibMode   = true;
+  private boolean lightMode = true;
 
   private HidDevice     dev;
   private HidDeviceInfo devInfo;
@@ -21,14 +23,14 @@ public class Joycon {
   private char[]  stick_cal = { 0, 0, 0, 0, 0, 0 };
   private char deadzone;
 
-  private short[] acc_r = {0, 0, 0};
-  private Vector3 acc_g = new Vector3(0, 0, 0);
+  private short[] acc_r     = {0, 0, 0};
+  private Vector3 acc_g     = new Vector3(0, 0, 0);
   private Vector3 pre_acc_g = new Vector3(0, 0, 0);
 
-  private short[] gyr_r = {0, 0, 0};
+  private short[] gyr_r       = {0, 0, 0};
   private short[] gyr_neutral = {0, 0, 0};
-  private Vector3 gyr_g = new Vector3(0, 0, 0);
-  private Vector3 pre_gyr_g = new Vector3(0, 0, 0);
+  private Vector3 gyr_g       = new Vector3(0, 0, 0);
+  private Vector3 pre_gyr_g   = new Vector3(0, 0, 0);
 
   float[] max = {0, 0, 0};
   float[] sum = {0, 0, 0};
@@ -40,13 +42,18 @@ public class Joycon {
   private float filterweight = 0.5f;
   private int timestamp = 0;
   private int report_len = 49;
-  private boolean isLeft;
+  private boolean isLeft = false;
   private float posX, posY;
   private float vx, vy;
   private int t;
+  
+  public byte[] spi() {
+    return readSPI((byte)0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9, false);
+  }
 
-  Joycon() {
-    connectDevice();
+  Joycon(int _id) {
+    if (_id == JoyconConstants.LEFT_ID) isLeft = true;
+    connectDevice(_id);
     setReportListener();
     setRemovalListener();
     changeMode();
@@ -61,25 +68,22 @@ public class Joycon {
 
   ////////////////////////////////////////////////////////////////
   /* initialize methods */
-  private void connectDevice() {
+  private void connectDevice(int _id) { 
     List<HidDeviceInfo> devList = PureJavaHidApi.enumerateDevices();
 
     for (HidDeviceInfo info : devList) {
-      if (info.getVendorId() != JoyconConstants.VENDOR_ID) continue;
-
-      if (info.getProductId() == JoyconConstants.LEFT_ID) isLeft = true;
-      else if (info.getProductId() == JoyconConstants.RIGHT_ID) isLeft = false;
-      else return;
+      if ( info.getVendorId()  != JoyconConstants.VENDOR_ID ) continue;
+      if ( info.getProductId() != _id ) continue;
 
       devInfo = info;
-      System.out.printf(
-        "VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", 
-        info.getVendorId(), 
-        info.getProductId(), 
-        info.getManufacturerString(), 
-        info.getProductString(), 
-        info.getPath()
-        );
+      //System.out.printf(
+      //  "VID = 0x%04X PID = 0x%04X Manufacturer = %s Product = %s Path = %s\n", 
+      //  info.getVendorId(), 
+      //  info.getProductId(), 
+      //  info.getManufacturerString(), 
+      //  info.getProductString(), 
+      //  info.getPath()
+      //  );
       break;
     }
 
@@ -98,6 +102,10 @@ public class Joycon {
   }
 
   private void setRemovalListener() {
+    if (devInfo==null) {
+      println("connection error");
+      return;
+    }
     dev.setDeviceRemovalListener(new DeviceRemovalListener() {
       @Override
         public void onDeviceRemoval(HidDevice source) {
@@ -108,16 +116,18 @@ public class Joycon {
   }
 
   private void setReportListener() {
-
+    if (devInfo==null) {
+      println("connection error");
+      return;
+    }
     dev.setInputReportListener(new InputReportListener() {
       @Override
         public void onInputReport(HidDevice source, byte Id, byte[] data, int len) {
-        System.out.printf("onInputReport: id %d len %d data ", Id, len);
+        //System.out.printf("onInputReport: id %d len %d data ", Id, len);
         for (int i = 0; i < len; i++) System.out.printf("%02x ", data[i]);
         System.out.println();
 
         processIMU(data);
-
         processButtonsAndStick(data);
 
         posX = - ( (1/2) * (gyr_g.z) + (gyr_g.z) ) + posX;
@@ -130,6 +140,10 @@ public class Joycon {
   }
 
   private void changeMode() {
+    if (devInfo==null) {
+      println("connection error");
+      return;
+    }
     Thread thread = new Thread(new MultiThread() {
       @Override
         public void run() {
@@ -168,29 +182,37 @@ public class Joycon {
           joycon_send_subcommand(0x1, 0x3, new byte[] {0x30});
           Thread.sleep(100);
 
-          if (ir_mode) {
+          joycon_send_subcommand(0x1, 0x48, new byte[] {0x03, 0x03, 0x00, 0x00});
+          Thread.sleep(100);
+
+          if (irMode) {
             // I can't do it.
+            Thread.sleep(100);
           }
-          Thread.sleep(100);
 
-          // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
-          //joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
-          //Thread.sleep(100);
+          if (vibMode) {
+            // subcommand 0x48: Enable vibration data (x00: Disable) (x01: Enable)
+            joycon_send_subcommand(0x1, 0x48, new byte[] {0x01});
+            Thread.sleep(100);
+          }
 
-          // Light up Home button
-          byte[] b = {
-            byte(0xaf), byte(0x00), 
-            byte(0xf0), byte(0x40), byte(0x40), 
-            byte(0xf0), byte(0x00), byte(0x00), 
-            byte(0xf0), byte(0x00), byte(0x00), 
-            byte(0xf0), byte(0x0f), byte(0x00), 
-            byte(0xf0), byte(0x00), byte(0x00)
-          };
-          joycon_send_subcommand(0x1, 0x38, b);
-          Thread.sleep(100);
+          if (lightMode) {
+            // Light up Home button
+            byte[] b = {
+              byte(0xaf), byte(0x00), 
+              byte(0xf0), byte(0x40), byte(0x40), 
+              byte(0xf0), byte(0x00), byte(0x00), 
+              byte(0xf0), byte(0x00), byte(0x00), 
+              byte(0xf0), byte(0x0f), byte(0x00), 
+              byte(0xf0), byte(0x00), byte(0x00)
+            };
+            joycon_send_subcommand(0x1, 0x38, b);
+            Thread.sleep(100);
 
-          // Light up Player button
-          joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
+            // Light up Player button
+            joycon_send_subcommand(0x1, 0x30, new byte[] {byte(0xa5)});
+            Thread.sleep(100);
+          }
         } 
         catch(InterruptedException e) {
           println(e);
@@ -201,7 +223,43 @@ public class Joycon {
     thread.start();
   }
 
+  public void initialPosition() {
+    posX = 0;
+    posY = 0;
+  }
+
+  public void detach() {
+    //Thread thread2 = new Thread(new MultiThread() {
+    //  @Override
+    //  public void run() {
+    //    try {
+    joycon_send_subcommand(0x01, 0x30, new byte[] { 0x0 });
+    //Thread.sleep(100);
+    delay(100);
+    joycon_send_subcommand(0x01, 0x40, new byte[] { 0x0 });
+    delay(100);
+    joycon_send_subcommand(0x01, 0x48, new byte[] { 0x0 });
+    delay(100);
+    joycon_send_subcommand(0x01, 0x03, new byte[] { 0x3f });
+    //} 
+    //catch(InterruptedException e) {
+    //  println(e);
+    //}
+    //}
+    //}
+    //);
+    //thread2.start();
+  }
+
+  /////////////////////////////////////////////////////////////
+  /* HID output methods */
+
+  // {command, ++(global_count) & 0xF, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, subcommand, data[0], ... , data[data.length-1]}
   private void joycon_send_subcommand(int command, int subcommand, byte[] data) {
+    if (devInfo==null) {
+      println("connection error");
+      return;
+    }
     byte[] buf = new byte[0x400];
     byte[] b = {
       byte(command), 
@@ -209,42 +267,37 @@ public class Joycon {
       0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, 
       byte(subcommand)
     };
-    
+
     Arrays.fill(int(buf), 0);
     System.arraycopy(b, 0, buf, 0, b.length);
     System.arraycopy(data, 0, buf, b.length, data.length);
     int len = b.length + data.length;
     dev.setOutputReport(byte(0), buf, len);
-    // {command, ++(global_count) & 0xF, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, subcommand, data[0], ... , data[data.length-1]}
-  }
-
-  public void setRumble(float low_freq, float high_freq, float amp, int time) {
-    //if (state <= Joycon.state_.ATTACHED) return;
-    if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
-      rumble_obj = new Rumble(low_freq, high_freq, amp, time);
-    }
   }
 
   public void sendRumble(byte[] buf) {
+    if (devInfo==null) {
+      println("connection error");
+      return;
+    }
+
     byte[] buf_ = new byte[report_len];
     buf_[0] = 0x10;
     buf_[1] = byte(global_count);
-    if (global_count == 0xf) global_count = 0;
-    else ++global_count;
-    for (int i=0; i<buf.length; i++) {
-      buf_[i+2] = buf[i];
-    }
-    //PrintArray(buf_, DebugType.RUMBLE, format: 
-    //  "Rumble data sent: {0:S}");
+    global_count = (global_count==0xF) ? 0 : global_count+1;
+    System.arraycopy(buf, 0, buf_, 2, buf.length);
     dev.setOutputReport(byte(0x0), buf_, report_len);
   }
 
-  public void initialPosition() {
-    posX = 0;
-    posY = 0;
+  ///////////////////////////////////////////////////////////////
+  /* set methods */
+  public void setRumble(float _lowFreq, float _highFreq, float _amp, int _time) {
+    //if (rumble_obj.timed_rumble == false || rumble_obj.t < 0) {
+    rumble_obj = new Rumble(_lowFreq, _highFreq, _amp, _time);
+    println(rumble_obj.getData());
+    //}
   }
 
-  ///////////////////////////////////////////////////////////////
   /* get methods */
   public boolean getButtonDown(Button b) {
     return buttons_down[(int)b.ordinal()];
@@ -271,7 +324,7 @@ public class Joycon {
   }
 
   //////////////////////////////////////////////////////////////
-  /* Process Stick Values */
+  /* process stick values methods */
   private int processButtonsAndStick(byte[] report_buf) {
     if (report_buf[0] == 0x00) return -1;
 
@@ -282,18 +335,11 @@ public class Joycon {
     char[] stick_precal = {0, 0};
     stick_precal[0] = (char)(stick_raw[0] | ((stick_raw[1] & 0xf) << 8));
     stick_precal[1] = (char)((stick_raw[1] >> 4) | (stick_raw[2] << 4));
-    //println(int(stick_precal[0]), int(stick_precal[1]));
 
     stick = centerSticks(stick_precal);
-    //lock (buttons)
-    //{
-    //lock (down_)
-    //{
-    for (int i = 0; i < buttons.length; ++i)
-    {
+    for (int i = 0; i < buttons.length; ++i) {
       down_[i] = buttons[i];
     }
-    //}
     buttons[(int)Button.DPAD_DOWN.ordinal()]  = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
     buttons[(int)Button.DPAD_RIGHT.ordinal()] = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
     buttons[(int)Button.DPAD_UP.ordinal()]    = (report_buf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
@@ -308,21 +354,18 @@ public class Joycon {
     buttons[(int)Button.SL.ordinal()]         = (report_buf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
 
     boolean[] down_ = new boolean[13];
-    //lock (buttons_up)
-    //{
-    //  lock (buttons_down)
-    //  {
     for (int i = 0; i < buttons.length; ++i) {
       buttons_up[i] = (down_[i] & !buttons[i]);
       buttons_down[i] = (!down_[i] & buttons[i]);
     }
-    // }
-    //}
-    //}
     return 0;
   }
 
   private float[] centerSticks(char[] vals) {
+    if (devInfo==null) {
+      println("connection error");
+      return new float[]{-1};
+    }
 
     float[] s = { 0, 0 };
     for (int i = 0; i < 2; ++i) {
@@ -339,8 +382,7 @@ public class Joycon {
 
 
   /////////////////////////////////////////////////////////////////
-  /* Process IMU Values */
-
+  /* process IMU values */
   private int processIMU(byte[] report_buf) {
 
     int dt = (report_buf[1] - timestamp);
@@ -431,6 +473,64 @@ public class Joycon {
     if (abs(acc_g.z) > abs(max[2])) max[2] = acc_g.z;
   }
 
+//  private void dump_calibration_data() {
+//    byte[] buf_ = ReadSPI(0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9); // get user calibration data if possible
+//    bool found = false;
+//    for (int i = 0; i < 9; ++i)
+//    {
+//      if (buf_[i] != 0xff)
+//      {
+//        Debug.Log("Using user stick calibration data.");
+//        found = true;
+//        break;
+//      }
+//    }
+//    if (!found) {
+//      Debug.Log("Using factory stick calibration data.");
+//      buf_ = ReadSPI(0x60, (isLeft ? (byte)0x3d : (byte)0x46), 9); // get user calibration data if possible
+//    }
+//    stick_cal[isLeft ? 0 : 2] = (UInt16)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
+//    stick_cal[isLeft ? 1 : 3] = (UInt16)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
+//    stick_cal[isLeft ? 2 : 4] = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
+//    stick_cal[isLeft ? 3 : 5] = (UInt16)((buf_[5] << 4) | (buf_[4] >> 4));  // Y Axis Center
+//    stick_cal[isLeft ? 4 : 0] = (UInt16)((buf_[7] << 8) & 0xF00 | buf_[6]); // X Axis Min below center
+//    stick_cal[isLeft ? 5 : 1] = (UInt16)((buf_[8] << 4) | (buf_[7] >> 4));  // Y Axis Min below center
+
+
+//    buf_ = ReadSPI(0x60, (isLeft ? (byte)0x86 : (byte)0x98), 16);
+//    deadzone = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]);
+
+//    buf_ = ReadSPI(0x80, 0x34, 10);
+//    gyr_neutral[0] = (Int16)(buf_[0] | ((buf_[1] << 8) & 0xff00));
+//    gyr_neutral[1] = (Int16)(buf_[2] | ((buf_[3] << 8) & 0xff00));
+//    gyr_neutral[2] = (Int16)(buf_[4] | ((buf_[5] << 8) & 0xff00));
+
+
+//    // This is an extremely messy way of checking to see whether there is user stick calibration data present, but I've seen conflicting user calibration data on blank Joy-Cons. Worth another look eventually.
+//    if (gyr_neutral[0] + gyr_neutral[1] + gyr_neutral[2] == -3 || Math.Abs(gyr_neutral[0]) > 100 || Math.Abs(gyr_neutral[1]) > 100 || Math.Abs(gyr_neutral[2]) > 100){
+//      buf_ = ReadSPI(0x60, 0x29, 10);
+//      gyr_neutral[0] = (Int16)(buf_[3] | ((buf_[4] << 8) & 0xff00));
+//      gyr_neutral[1] = (Int16)(buf_[5] | ((buf_[6] << 8) & 0xff00));
+//      gyr_neutral[2] = (Int16)(buf_[7] | ((buf_[8] << 8) & 0xff00));
+   
+//    }
+//  }
+
+  private byte[] readSPI(byte _addr1, byte _addr2, int _len, boolean print) {
+    byte[] buf = { _addr2, _addr1, 0x00, 0x00, (byte)_len };
+    byte[] read_buf = new byte[_len];
+    byte[] buf_ = new byte[_len + 20];
+
+    for (int i = 0; i < 100; i++) {
+      joycon_send_subcommand(0x01, 0x10, buf);
+      if (buf_[15] == _addr2 && buf_[16] == _addr1) {
+        break;
+      }
+    }
+    System.arraycopy(buf_, 20, read_buf, 0, _len);
+    return read_buf;
+  }
+
   ////////////////////////////////////////////////////////////////
   // inner class Rumble
   private class Rumble {
@@ -438,14 +538,14 @@ public class Joycon {
     public float t;
     public boolean timed_rumble;
 
-    public Rumble(float low_freq, float high_freq, float amplitude, int time) {
-      h_f = high_freq;
-      amp = amplitude;
-      l_f = low_freq;
-      //timed_rumble = false;
+    Rumble(float _lowFreq, float _highFreq, float _amplitude, int _time) {
+      l_f = _lowFreq;
+      h_f = _highFreq;
+      amp = _amplitude;
+      timed_rumble = false;
       t = 0;
-      if (time != 0) {
-        t = time / 1000f;
+      if (_time != 0) {
+        t = _time / 1000f;
         timed_rumble = true;
       }
     }
