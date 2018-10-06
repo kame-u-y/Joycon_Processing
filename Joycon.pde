@@ -54,7 +54,7 @@ public class Joycon {
       return buttons;
     }
     
-    public int process(byte[] reportBuf) {
+    public void process(byte[] reportBuf) {
       if (reportBuf[0] == 0x00) return -1;
 
       buttons[(int)ButtonEnum.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
@@ -69,26 +69,16 @@ public class Joycon {
       buttons[(int)ButtonEnum.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
       buttons[(int)ButtonEnum.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
       buttons[(int)ButtonEnum.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
-
-      return 0;
     }
   }
 
-  private Stick stick = new Stick();
-  private Button button = new Button();
- 
 
   private HidDevice     device;
   private HidDeviceInfo deviceInfo;
 
-//  private boolean[] buttonsDown = new boolean[13];
-//  private boolean[] buttonsUp   = new boolean[13];
-  private boolean[] buttons      = new boolean[13];
-
-  //private float[] stick = {0, 0};
-  //private char[]  stickCal = { 0, 0, 0, 0, 0, 0 };
-  //private char deadzone;
-
+  private Stick stick = new Stick();
+  private Button button = new Button();
+ 
   private short[] accR     = {0, 0, 0};
   private Vector3 accG     = new Vector3(0, 0, 0);
   private Vector3 preAccG = new Vector3(0, 0, 0);
@@ -186,9 +176,7 @@ public class Joycon {
         //System.out.println();
 
         processIMU(data);
-        //processStick(data);
         stick.process(data);
-        //processButton(data);
         button.process(data);
 
         posX = - ( (1/2) * (gyrG.z) + (gyrG.z) ) + posX;
@@ -342,63 +330,6 @@ public class Joycon {
   public Vector3 getGyro() {
     return gyrG;
   }
-
-  //////////////////////////////////////////////////////////////
-  /* process stick values methods */
-  //private int processStick(byte[] reportBuf) {
-  //  if (reportBuf[0] == 0x00) return -1;
-
-  //  short[] r = {0, 0, 0}; // Stick Raw Data
-  //  r[0] = reportBuf[6 + (isLeft ? 0 : 3)];
-  //  r[1] = reportBuf[7 + (isLeft ? 0 : 3)];
-  //  r[2] = reportBuf[8 + (isLeft ? 0 : 3)];
-
-  //  char X = (char) ( r[0] | (r[1] & 0xf) << 8 );
-  //  char Y = (char) ( r[1] >> 4 | r[2] << 4 );
-  //  char[] stick_precal = {X, Y};
-
-  //  stick = centerSticks(stick_precal);
-  //  return 0;
-  //}
-
-  private int processButton(byte[] reportBuf) {
-    if (reportBuf[0] == 0x00) return -1;
-
-    buttons[(int)ButtonEnum.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
-    buttons[(int)ButtonEnum.DPAD_RIGHT.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
-    buttons[(int)ButtonEnum.DPAD_UP.ordinal()]    = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
-    buttons[(int)ButtonEnum.DPAD_LEFT.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
-    buttons[(int)ButtonEnum.HOME.ordinal()]       = ((reportBuf[4] & 0x10) != 0);
-    buttons[(int)ButtonEnum.MINUS.ordinal()]      = ((reportBuf[4] & 0x01) != 0);
-    buttons[(int)ButtonEnum.PLUS.ordinal()]       = ((reportBuf[4] & 0x02) != 0);
-    buttons[(int)ButtonEnum.STICK.ordinal()]      = ((reportBuf[4] & (isLeft ? 0x08 : 0x04)) != 0);
-    buttons[(int)ButtonEnum.SHOULDER_1.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
-    buttons[(int)ButtonEnum.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
-    buttons[(int)ButtonEnum.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
-    buttons[(int)ButtonEnum.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
-
-    return 0;
-  }
-
-  //  private float[] centerSticks(char[] vals) {
-  //    if (deviceInfo==null) {
-  //      println("connection error");
-  //      return new float[]{-1};
-  //    }
-
-  //    float[] s = { 0, 0 };
-  //    for (int i = 0; i < 2; ++i) {
-  //      float diff = vals[i] - stickCal[2 + i];
-  //      if (abs(diff) < deadzone) vals[i] = 0;
-  //      else if (diff > 0) { // if axis is above center
-  //        s[i] = diff / stickCal[i];
-  //      } else {
-  //        s[i] = diff / stickCal[4 + i];
-  //      }
-  //    }
-  //    return s;
-  //  }
-
 
   /////////////////////////////////////////////////////////////////
   /* process IMU values */
