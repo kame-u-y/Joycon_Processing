@@ -32,6 +32,7 @@ void draw() {
       nf(rightGyro.y, 1, 9), 
       nf(rightGyro.z, 1, 9)
       );
+     println(joyconRight.getStick());
   }
 
   fill(0, 255, 0);
@@ -42,26 +43,26 @@ void draw() {
 void displayInputText(Joycon j) {
   textSize(20);
 
-  if (j.getButton(Button.SHOULDER_1)) {
+  if (j.getButton(ButtonEnum.SHOULDER_1)) {
     text("SHOULDER_1", width/2, height/2-40);
   }
-  if (j.getButton(Button.SHOULDER_2)) {
+  if (j.getButton(ButtonEnum.SHOULDER_2)) {
     text("SHOULDER_2", width/2, height/2-20);
   }
-  if (j.getButton(Button.DPAD_DOWN)) {
+  if (j.getButton(ButtonEnum.DPAD_DOWN)) {
     text("DPAD_DOWN", width/2, height/2);
   }
-  if (j.getButton(Button.DPAD_RIGHT)) {
+  if (j.getButton(ButtonEnum.DPAD_RIGHT)) {
     text("DPAD_RIGHT", width/2, height/2+20);
   }
-  if (j.getButton(Button.DPAD_LEFT)) {
+  if (j.getButton(ButtonEnum.DPAD_LEFT)) {
     text("DPAD_LEFT", width/2, height/2+40);
     j.initializePosition();
   }
-  if (j.getButton(Button.DPAD_UP)) {
+  if (j.getButton(ButtonEnum.DPAD_UP)) {
     text("DPAD_UP", width/2, height/2+60);
   }
-  if (j.getButton(Button.STICK)) {
+  if (j.getButton(ButtonEnum.STICK)) {
     text("STICK", width/2, height/2+80);
   }
 }

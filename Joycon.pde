@@ -5,17 +5,89 @@ import java.util.Arrays;
 
 public class Joycon {
 
+  private class Stick {
+    private float X, Y;
+    private Vector2 max, center, min;
+
+    public float[] getValues() {
+      return new float[]{this.X, this.Y};
+    }
+
+    public Stick() {
+      this.max = new Vector2(0, 0);
+      this.center = new Vector2(0, 0);
+      this.min = new Vector2(0, 0);
+    }
+
+    public void process(byte[] reportBuf) {
+      this.unmarshalBinary(reportBuf);
+      this.calibration();
+    }
+
+    private void unmarshalBinary(byte[] reportBuf) {
+      if (reportBuf[0] == 0x00) return;
+
+      short[] r = {0, 0, 0}; // Stick Raw Data
+      r[0] = reportBuf[6 + (isLeft ? 0 : 3)];
+      r[1] = reportBuf[7 + (isLeft ? 0 : 3)];
+      r[2] = reportBuf[8 + (isLeft ? 0 : 3)];
+
+      this.X = (char) ( r[0] | (r[1] & 0xf) << 8 );
+      this.Y = (char) ( r[1] >> 4 | r[2] << 4 );
+    }
+
+    private void calibration() {
+      float diff = this.X - this.center.X;
+      if (abs(diff) < 0xae) {
+        diff = 0.0;
+      }
+      this.X = (diff > 0) ? diff / this.max.X : diff / this.min.X;
+      diff = this.Y - this.center.Y;
+      this.Y = (diff > 0) ? diff / this.max.Y : diff / this.min.Y;
+    }
+  }
+
+  private class Button {
+    private boolean[] buttons = new boolean[13];
+    
+    public boolean[] getButtons() {
+      return buttons;
+    }
+    
+    public int process(byte[] reportBuf) {
+      if (reportBuf[0] == 0x00) return -1;
+
+      buttons[(int)ButtonEnum.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
+      buttons[(int)ButtonEnum.DPAD_RIGHT.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
+      buttons[(int)ButtonEnum.DPAD_UP.ordinal()]    = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
+      buttons[(int)ButtonEnum.DPAD_LEFT.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
+      buttons[(int)ButtonEnum.HOME.ordinal()]       = ((reportBuf[4] & 0x10) != 0);
+      buttons[(int)ButtonEnum.MINUS.ordinal()]      = ((reportBuf[4] & 0x01) != 0);
+      buttons[(int)ButtonEnum.PLUS.ordinal()]       = ((reportBuf[4] & 0x02) != 0);
+      buttons[(int)ButtonEnum.STICK.ordinal()]      = ((reportBuf[4] & (isLeft ? 0x08 : 0x04)) != 0);
+      buttons[(int)ButtonEnum.SHOULDER_1.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
+      buttons[(int)ButtonEnum.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
+      buttons[(int)ButtonEnum.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
+      buttons[(int)ButtonEnum.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
+
+      return 0;
+    }
+  }
+
+  private Stick stick = new Stick();
+  private Button button = new Button();
+ 
+
   private HidDevice     device;
   private HidDeviceInfo deviceInfo;
 
-  private boolean[] buttonsDown = new boolean[13];
-  private boolean[] buttonsUp   = new boolean[13];
+//  private boolean[] buttonsDown = new boolean[13];
+//  private boolean[] buttonsUp   = new boolean[13];
   private boolean[] buttons      = new boolean[13];
 
-  private float[] stick = {0, 0};
-  private short[] stickRaw = {0, 0, 0};
-  private char[]  stickCal = { 0, 0, 0, 0, 0, 0 };
-  private char deadzone;
+  //private float[] stick = {0, 0};
+  //private char[]  stickCal = { 0, 0, 0, 0, 0, 0 };
+  //private char deadzone;
 
   private short[] accR     = {0, 0, 0};
   private Vector3 accG     = new Vector3(0, 0, 0);
@@ -101,13 +173,23 @@ public class Joycon {
       @Override
         public void onInputReport(HidDevice source, byte id, byte[] data, int len) {
         //System.out.printf("onInputReport: id %d len %d data ", id, len);
-        // for (int i = 0; i < len; i++) {
-        //   System.out.printf("%02x ", data[i]);
-        // }
-        // System.out.println();
+        //for (int i = 0; i < len; i++) {
+        //  if (i==3) System.out.print("Button: ");
+        //  if (i==6) System.out.print("LeftStick: ");
+        //  if (i==9) System.out.print("RightStick: ");
+        //  if (i==12) System.out.print("Vibrator: ");
+        //  if (i==13) System.out.print("ACKByte: ");
+        //  if (i==14) System.out.print("SubcmdID: ");
+        //  if (i==15) System.out.print("ReplyData: ");
+        //  System.out.printf("%02x ", data[i]);
+        //}
+        //System.out.println();
 
         processIMU(data);
-        processButtonsAndStick(data);
+        //processStick(data);
+        stick.process(data);
+        //processButton(data);
+        button.process(data);
 
         posX = - ( (1/2) * (gyrG.z) + (gyrG.z) ) + posX;
         posY = (1/2) * (gyrG.y) + (gyrG.y) + posY;
@@ -245,12 +327,12 @@ public class Joycon {
   }
 
   /* get methods */
-  public boolean getButton(Button b) {
-    return buttons[(int)b.ordinal()];
+  public boolean getButton(ButtonEnum b) {
+    return button.getButtons() [(int)b.ordinal()];
   }
 
   public float[] getStick() {
-    return stick;
+    return stick.getValues();
   }
 
   public Vector3 getAccel() {
@@ -263,53 +345,59 @@ public class Joycon {
 
   //////////////////////////////////////////////////////////////
   /* process stick values methods */
-  private int processButtonsAndStick(byte[] reportBuf) {
+  //private int processStick(byte[] reportBuf) {
+  //  if (reportBuf[0] == 0x00) return -1;
+
+  //  short[] r = {0, 0, 0}; // Stick Raw Data
+  //  r[0] = reportBuf[6 + (isLeft ? 0 : 3)];
+  //  r[1] = reportBuf[7 + (isLeft ? 0 : 3)];
+  //  r[2] = reportBuf[8 + (isLeft ? 0 : 3)];
+
+  //  char X = (char) ( r[0] | (r[1] & 0xf) << 8 );
+  //  char Y = (char) ( r[1] >> 4 | r[2] << 4 );
+  //  char[] stick_precal = {X, Y};
+
+  //  stick = centerSticks(stick_precal);
+  //  return 0;
+  //}
+
+  private int processButton(byte[] reportBuf) {
     if (reportBuf[0] == 0x00) return -1;
 
-    stickRaw[0] = reportBuf[6 + (isLeft ? 0 : 3)];
-    stickRaw[1] = reportBuf[7 + (isLeft ? 0 : 3)];
-    stickRaw[2] = reportBuf[8 + (isLeft ? 0 : 3)];
-
-    char[] stick_precal = {0, 0};
-    stick_precal[0] = (char)(stickRaw[0] | ((stickRaw[1] & 0xf) << 8));
-    stick_precal[1] = (char)((stickRaw[1] >> 4) | (stickRaw[2] << 4));
-
-    stick = centerSticks(stick_precal);
-
-    buttons[(int)Button.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
-    buttons[(int)Button.DPAD_RIGHT.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
-    buttons[(int)Button.DPAD_UP.ordinal()]    = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
-    buttons[(int)Button.DPAD_LEFT.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
-    buttons[(int)Button.HOME.ordinal()]       = ((reportBuf[4] & 0x10) != 0);
-    buttons[(int)Button.MINUS.ordinal()]      = ((reportBuf[4] & 0x01) != 0);
-    buttons[(int)Button.PLUS.ordinal()]       = ((reportBuf[4] & 0x02) != 0);
-    buttons[(int)Button.STICK.ordinal()]      = ((reportBuf[4] & (isLeft ? 0x08 : 0x04)) != 0);
-    buttons[(int)Button.SHOULDER_1.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
-    buttons[(int)Button.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
-    buttons[(int)Button.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
-    buttons[(int)Button.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
+    buttons[(int)ButtonEnum.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
+    buttons[(int)ButtonEnum.DPAD_RIGHT.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
+    buttons[(int)ButtonEnum.DPAD_UP.ordinal()]    = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x02 : 0x02)) != 0;
+    buttons[(int)ButtonEnum.DPAD_LEFT.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x08 : 0x01)) != 0;
+    buttons[(int)ButtonEnum.HOME.ordinal()]       = ((reportBuf[4] & 0x10) != 0);
+    buttons[(int)ButtonEnum.MINUS.ordinal()]      = ((reportBuf[4] & 0x01) != 0);
+    buttons[(int)ButtonEnum.PLUS.ordinal()]       = ((reportBuf[4] & 0x02) != 0);
+    buttons[(int)ButtonEnum.STICK.ordinal()]      = ((reportBuf[4] & (isLeft ? 0x08 : 0x04)) != 0);
+    buttons[(int)ButtonEnum.SHOULDER_1.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x40) != 0;
+    buttons[(int)ButtonEnum.SHOULDER_2.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x80) != 0;
+    buttons[(int)ButtonEnum.SR.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x10) != 0;
+    buttons[(int)ButtonEnum.SL.ordinal()]         = (reportBuf[3 + (isLeft ? 2 : 0)] & 0x20) != 0;
 
     return 0;
   }
 
-  private float[] centerSticks(char[] vals) {
-    if (deviceInfo==null) {
-      println("connection error");
-      return new float[]{-1};
-    }
+  //  private float[] centerSticks(char[] vals) {
+  //    if (deviceInfo==null) {
+  //      println("connection error");
+  //      return new float[]{-1};
+  //    }
 
-    float[] s = { 0, 0 };
-    for (int i = 0; i < 2; ++i) {
-      float diff = vals[i] - stickCal[2 + i];
-      if (abs(diff) < deadzone) vals[i] = 0;
-      else if (diff > 0) { // if axis is above center
-        s[i] = diff / stickCal[i];
-      } else {
-        s[i] = diff / stickCal[4 + i];
-      }
-    }
-    return s;
-  }
+  //    float[] s = { 0, 0 };
+  //    for (int i = 0; i < 2; ++i) {
+  //      float diff = vals[i] - stickCal[2 + i];
+  //      if (abs(diff) < deadzone) vals[i] = 0;
+  //      else if (diff > 0) { // if axis is above center
+  //        s[i] = diff / stickCal[i];
+  //      } else {
+  //        s[i] = diff / stickCal[4 + i];
+  //      }
+  //    }
+  //    return s;
+  //  }
 
 
   /////////////////////////////////////////////////////////////////

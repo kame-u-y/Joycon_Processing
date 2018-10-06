@@ -4,7 +4,7 @@ public static class JoyconConstants {
   public static final int RIGHT_ID  = 0x2007;
 }
 
-public enum Button {
+public enum ButtonEnum {
   DPAD_DOWN, 
     DPAD_RIGHT, 
     DPAD_LEFT, 
