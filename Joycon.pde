@@ -6,11 +6,11 @@ import java.util.Arrays;
 public class Joycon {
 
   private class Stick {
-    private float X, Y;
+    private float x, y;
     private Vector2 max, center, min;
 
     public float[] getValues() {
-      return new float[]{this.X, this.Y};
+      return new float[]{this.x, this.y};
     }
 
     public Stick() {
@@ -32,30 +32,30 @@ public class Joycon {
       r[1] = reportBuf[7 + (isLeft ? 0 : 3)];
       r[2] = reportBuf[8 + (isLeft ? 0 : 3)];
 
-      this.X = (char) ( r[0] | (r[1] & 0xf) << 8 );
-      this.Y = (char) ( r[1] >> 4 | r[2] << 4 );
+      this.x = (char) ( r[0] | (r[1] & 0xf) << 8 );
+      this.y = (char) ( r[1] >> 4 | r[2] << 4 );
     }
 
     private void calibration() {
-      float diff = this.X - this.center.X;
+      float diff = this.x - this.center.x;
       if (abs(diff) < 0xae) {
         diff = 0.0;
       }
-      this.X = (diff > 0) ? diff / this.max.X : diff / this.min.X;
-      diff = this.Y - this.center.Y;
-      this.Y = (diff > 0) ? diff / this.max.Y : diff / this.min.Y;
+      this.x = (diff > 0) ? diff / this.max.x : diff / this.min.x;
+      diff = this.y - this.center.y;
+      this.y = (diff > 0) ? diff / this.max.y : diff / this.min.y;
     }
   }
 
   private class Button {
     private boolean[] buttons = new boolean[13];
-    
+
     public boolean[] getButtons() {
       return buttons;
     }
-    
+
     public void process(byte[] reportBuf) {
-      if (reportBuf[0] == 0x00) return -1;
+      if (reportBuf[0] == 0x00) return;
 
       buttons[(int)ButtonEnum.DPAD_DOWN.ordinal()]  = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x01 : 0x04)) != 0;
       buttons[(int)ButtonEnum.DPAD_RIGHT.ordinal()] = (reportBuf[3 + (isLeft ? 2 : 0)] & (isLeft ? 0x04 : 0x08)) != 0;
@@ -72,13 +72,119 @@ public class Joycon {
     }
   }
 
+  private class IMU {
+
+    private Vector3 accel, gyro;
+    private Vector3 preAccel, preGyro;
+    private Vector3 gyroNeutral, max, sum;
+
+    private void extractIMUValues(byte[] reportBuf, int n) {
+      byte[] r = reportBuf;
+      Vector3 accelRaw = new Vector3(
+        (short) (r[13 + n * 12] | (r[14 + n * 12] << 8 & 0xff00)), 
+        (short) (r[15 + n * 12] | (r[16 + n * 12] << 8 & 0xff00)), 
+        (short) (r[17 + n * 12] | (r[18 + n * 12] << 8 & 0xff00))
+        );
+      Vector3 gyroRaw = new Vector3(
+        (short) (r[19 + n * 12] | (r[20 + n * 12] << 8 & 0xff00)), 
+        (short) (r[21 + n * 12] | (r[22 + n * 12] << 8 & 0xff00)), 
+        (short) (r[23 + n * 12] | (r[24 + n * 12] << 8 & 0xff00))
+        );
+
+      preAccel = new Vector3 (accel.x, accel.y, accel.z);
+      preGyro = new Vector3 (gyro.x, gyro.y, gyro.z);
+
+      this.accel = new Vector3 (
+        accelRaw.x * 0.00025f, 
+        accelRaw.y * 0.00025f, 
+        accelRaw.z * 0.00025f
+        );
+      gyro = new Vector3 (
+        (gyroRaw.x - gyrNeutral[0]) * 0.00122187695f, 
+        (gyroRaw.y - gyrNeutral[1]) * 0.00122187695f, 
+        (gyroRaw.z - gyrNeutral[2]) * 0.00122187695f
+        );
+
+      if (abs(this.accel.x) > abs(this.max.x)) this.max.x = this.accel.x;
+      if (abs(this.accel.y) > abs(this.max.y)) this.max.y = this.accel.y;
+      if (abs(this.accel.z) > abs(this.max.z)) this.max.z = this.accel.z;
+    }
+
+    public void process(byte[] reportBuf) {
+      int dt = (reportBuf[1] - timestamp);
+      if (reportBuf[1] < timestamp) dt += 0x100;
+
+      for (int n=0; n<3; n++) {
+        extractIMUValues(reportBuf, n);
+
+        float dt_sec = 0.005f * dt;
+        sum = Vector3.addition(sum, new Vector3(
+          gyrG.x * dt_sec, 
+          gyrG.y * dt_sec, 
+          gyrG.z * dt_sec
+          ));
+
+        if (!isLeft) {
+          accG.y *= -1;
+          accG.z *= -1;
+          gyrG.y *= -1;
+          gyrG.z *= -1;
+        }
+
+        if (firstImuPacket) {
+          iB = new Vector3(1, 0, 0);
+          jB = new Vector3(0, 1, 0);
+          kB = new Vector3(0, 0, 1);
+          firstImuPacket = false;
+        } else {
+          Vector3 k = Vector3.normalize(accG);
+          kAcc = new Vector3(-k.x, -k.y, -k.z);
+
+          Vector3 w_a = Vector3.cross(kB, kAcc);
+          Vector3 w_g = new Vector3(
+            -gyrG.x * dt_sec, 
+            -gyrG.y * dt_sec, 
+            -gyrG.z * dt_sec
+            );
+
+          Vector3 d_theta = new Vector3(
+            (filterweight * w_a.x + w_g.x) / (1f + filterweight), 
+            (filterweight * w_a.y + w_g.y) / (1f + filterweight), 
+            (filterweight * w_a.z + w_g.z) / (1f + filterweight)
+            );
+          Vector3 dxk = Vector3.cross(d_theta, kB);
+          kB = Vector3.addition(kB, Vector3.cross(d_theta, kB));
+          iB = Vector3.addition(iB, Vector3.cross(d_theta, iB));
+          jB = Vector3.addition(jB, Vector3.cross(d_theta, jB));
+          //Correction, ensure new axes are orthogonal
+          float err = Vector3.dot(iB, jB) * 0.5f;
+          Vector3 tmp = Vector3.normalize(new Vector3(
+            iB.x - err * jB.x, 
+            iB.y - err * jB.y, 
+            iB.z - err * jB.z
+            ));
+
+          jB = Vector3.normalize(new Vector3(
+            jB.x - err * iB.x, 
+            jB.y - err * iB.y, 
+            jB.z - err * iB.z
+            ));
+          iB = tmp;
+          kB = Vector3.cross(iB, jB);
+        }
+
+        dt = 1;
+      }
+      timestamp = reportBuf[1] + 2;
+    }
+  }
 
   private HidDevice     device;
   private HidDeviceInfo deviceInfo;
 
   private Stick stick = new Stick();
   private Button button = new Button();
- 
+
   private short[] accR     = {0, 0, 0};
   private Vector3 accG     = new Vector3(0, 0, 0);
   private Vector3 preAccG = new Vector3(0, 0, 0);

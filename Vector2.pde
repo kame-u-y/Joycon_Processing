@@ -1,16 +1,16 @@
 public class Vector2 {
-  float X, Y;
+  float x, y;
   
   public Vector2(float _x, float _y) {
-    this.X = _x;
-    this.Y = _y;
+    this.x = _x;
+    this.y = _y;
   }
   
   public float getX() {
-    return this.X;
+    return this.x;
   }
   
   public float getY() {
-    return this.Y;
+    return this.y;
   }
 }
