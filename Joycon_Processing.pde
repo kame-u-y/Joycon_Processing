@@ -32,7 +32,8 @@ void draw() {
       nf(rightGyro.y, 1, 9), 
       nf(rightGyro.z, 1, 9)
       );
-     println(joyconRight.getStick());
+     println(joyconRight.getStick().x);
+     println(joyconRight.getStick().y);
   }
 
   fill(0, 255, 0);
