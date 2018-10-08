@@ -215,12 +215,12 @@ public class Joycon {
       return;
     }
 
-    byte[] buf_ = new byte[report_len];
+    byte[] buf_ = new byte[REPORT_LEN];
     buf_[0] = 0x10;
     buf_[1] = byte(global_count);
     global_count = (global_count==0xF) ? 0 : global_count+1;
     System.arraycopy(buf, 0, buf_, 2, buf.length);
-    device.setOutputReport(byte(0x0), buf_, report_len);
+    device.setOutputReport(byte(0x0), buf_, REPORT_LEN);
   }
 
   ///////////////////////////////////////////////////////////////
@@ -294,11 +294,11 @@ public class Joycon {
    }
    */
 
-  public byte[] spi() {
-    return readSPI((byte)0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9, false);
-  }
+  // public byte[] spi() {
+  //   return readSPI((byte)0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9, false);
+  // }
 
-  private byte[] readSPI(byte _addr1, byte _addr2, int _len, boolean print) {
+  private byte[] readSPI(byte _addr1, byte _addr2, int _len) {
     byte[] buf = { _addr2, _addr1, 0x00, 0x00, (byte)_len };
     byte[] readBuf = new byte[_len];
     byte[] buf_ = new byte[_len + 20];
@@ -332,6 +332,7 @@ public class Joycon {
     public void process(byte[] reportBuf) {
       this.unmarshalBinary(reportBuf);
       this.calibration();
+      this.updateCalibInfo();
     }
 
     private void unmarshalBinary(byte[] reportBuf) {
@@ -354,6 +355,42 @@ public class Joycon {
       this.x = (diff > 0) ? diff / this.max.x : diff / this.min.x;
       diff = this.y - this.center.y;
       this.y = (diff > 0) ? diff / this.max.y : diff / this.min.y;
+    }
+
+    private void updateCalibInfo() {
+      byte[] data = readSPI(byte(0x80), (byte) (isLeft ? 0x1d : 0x46), 9);
+      boolean f = false;
+      if (data!=new byte[]{byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff)}) {
+        f = true;
+      } else {
+        data = readSPI(byte(0x60), (byte) (isLeft ? 0x3d : 0x46), 9);
+        if (data!=new byte[]{byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff), byte(0xff)}) {
+          f = true;
+        }
+      }
+      if (f) {
+        byte[] d = new byte[]{
+          byte(0x00), byte(0x00), byte(0x00), byte(0x00), byte(0x00), byte(0x00), byte(0x00), byte(0x00), byte(0x00), 
+          data[6], data[7], data[8], 
+          data[0], data[1], data[2], 
+          data[3], data[4], data[5]
+        };
+        // d = append(d, data.substring(6, 3));
+        // d = append(d, data.substring(0, 3));
+        // d = append(d, data.substring(3, 3));
+        this.max = new Vector2 (
+          d[0] | d[1] & 0x0f << 8, 
+          d[1] >> 4 | d[2] << 4
+          );
+        this.center = new Vector2 (
+          d[3] | d[4] & 0x0f << 8, 
+          d[4] >> 4 | d[5] << 4
+          );
+        this.min = new Vector2 (
+          d[6] | d[7] & 0x0f << 8, 
+          d[7] >> 4 | d[8] << 4
+          );
+      }
     }
   }
 
